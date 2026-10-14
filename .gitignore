@@ -33,3 +33,14 @@ tools/pid_logger.py
 RisaBotApp/bin/
 RisaBotApp/obj/
 
+# OTA release tarballs built by tools/fleet.py deploy. Keep the last few on disk for
+# rollback, but never commit them: they carry a copy of the model and the git bundle,
+# and this repo's history is already 264 MB of exactly this kind of mistake.
+tools/releases/
+
+# Installer build artifacts — only commit the scripts, not the binaries
+# installer/publish/  -> dotnet publish output (~150 MB self-contained EXE)
+# installer/output/   -> compiled Setup installer (~45 MB)
+installer/publish/
+installer/output/
+

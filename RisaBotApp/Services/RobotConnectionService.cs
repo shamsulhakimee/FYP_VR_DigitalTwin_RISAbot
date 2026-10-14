@@ -32,7 +32,11 @@ public class RobotConnectionService : IAsyncDisposable
         {
             if (_state == value) return;
             _state = value;
-            ConnectionStateChanged?.Invoke(this, value);
+
+            // The setter is hit from the receive loop, the ping loop and the connect path,
+            // only one of which is on the UI thread. Subscribers are view-models that write
+            // bound properties, so the hop happens here rather than at every call site.
+            UiThread.Post(() => ConnectionStateChanged?.Invoke(this, value));
         }
     }
 
@@ -153,8 +157,7 @@ public class RobotConnectionService : IAsyncDisposable
                         {
                             var msg = JsonSerializer.Deserialize<WsLogMessage>(raw, _json);
                             if (msg is not null)
-                                MainThread.BeginInvokeOnMainThread(
-                                    () => WsMessageReceived?.Invoke(this, msg));
+                                UiThread.Post(() => WsMessageReceived?.Invoke(this, msg));
                         }
                         catch { /* Skip malformed frames */ }
                     }
@@ -185,7 +188,18 @@ public class RobotConnectionService : IAsyncDisposable
                         endOfMessage: true,
                         ct);
                 }
-                catch { /* Ignore — receive loop will handle disconnect */ }
+                catch (OperationCanceledException) { break; }
+                catch
+                {
+                    // The receive loop does NOT reliably handle this. When Windows moves the
+                    // adapter to another network the socket goes half-open rather than
+                    // faulting, so ReceiveAsync blocks indefinitely and never reports the
+                    // drop. A send is the only operation that finds out, which makes this
+                    // catch the sole detector of that case — swallowing it is what let a
+                    // provisioning run hang forever with no error.
+                    State = WsConnectionState.Failed;
+                    return;
+                }
             }
         }
     }

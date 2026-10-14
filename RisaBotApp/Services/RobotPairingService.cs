@@ -4,12 +4,14 @@ using RisaBotApp.Models;
 namespace RisaBotApp.Services;
 
 /// <summary>
-/// Persists paired-robot data to MAUI Preferences.
+/// Persists paired-robot data to the local settings store.
 /// Remembers identity, target Wi-Fi SSID, mDNS hostname, and last assigned wlan0 IP for network-aware discovery.
 /// </summary>
-public class RobotPairingService
+public class RobotPairingService(SettingsStore settings)
 {
     private const string PrefsKey = "paired_robot";
+
+    private readonly SettingsStore _settings = settings;
 
     private static readonly JsonSerializerOptions _json = new()
     {
@@ -21,7 +23,7 @@ public class RobotPairingService
     /// <summary>Returns the stored pairing, or null if the robot has never been paired on this device.</summary>
     public PairedRobot? GetPairedRobot()
     {
-        var json = Preferences.Get(PrefsKey, string.Empty);
+        var json = _settings.Get(PrefsKey, string.Empty);
         if (string.IsNullOrWhiteSpace(json)) return null;
 
         try { return JsonSerializer.Deserialize<PairedRobot>(json, _json); }
@@ -48,7 +50,7 @@ public class RobotPairingService
             DashboardUrl      = dashboardUrl,
             PairedAt          = DateTime.UtcNow,
         };
-        Preferences.Set(PrefsKey, JsonSerializer.Serialize(robot, _json));
+        _settings.Set(PrefsKey, JsonSerializer.Serialize(robot, _json));
     }
 
     /// <summary>
@@ -67,7 +69,7 @@ public class RobotPairingService
         if (!string.IsNullOrWhiteSpace(dashboardUrl)) robot.DashboardUrl = dashboardUrl;
         robot.PairedAt = DateTime.UtcNow;
 
-        Preferences.Set(PrefsKey, JsonSerializer.Serialize(robot, _json));
+        _settings.Set(PrefsKey, JsonSerializer.Serialize(robot, _json));
     }
 
     /// <summary>
@@ -87,13 +89,13 @@ public class RobotPairingService
             DashboardUrl      = $"http://{hostOrIp}:8080",
             PairedAt          = DateTime.UtcNow,
         };
-        Preferences.Set(PrefsKey, JsonSerializer.Serialize(robot, _json));
+        _settings.Set(PrefsKey, JsonSerializer.Serialize(robot, _json));
     }
 
     // ── Delete ──────────────────────────────────────────────────────────────
 
     /// <summary>Clear pairing data. Called by "Forget Robot" in Settings tab.</summary>
-    public void ClearPairedRobot() => Preferences.Remove(PrefsKey);
+    public void ClearPairedRobot() => _settings.Remove(PrefsKey);
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 

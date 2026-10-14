@@ -1,0 +1,341 @@
+<UserControl
+    x:Class="RisaBotApp.Views.SlamView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:RisaBotApp.Controls"
+    Background="{StaticResource PageBackground}">
+
+    <!--
+        The Map page. Replaces the RViz-on-a-second-laptop workflow: the operator drives with
+        the joystick, watches the occupancy grid fill in here, and saves it — without an SSH
+        session.
+
+        Two columns, not a stack. The map wants every pixel it can get and is looked at
+        continuously; the controls and the saved-map list are glanced at between runs. A
+        fixed 300px rail keeps the map's aspect box from jumping every time a filename of a
+        different length lands in the list.
+    -->
+
+    <UserControl.Resources>
+        <Style x:Key="FieldCaption" TargetType="TextBlock" BasedOn="{StaticResource MutedText}">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+
+        <Style x:Key="FieldValue" TargetType="TextBlock" BasedOn="{StaticResource TelemetryValue}">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontFamily" Value="{StaticResource FontMono}" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="28,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />   <!-- header -->
+            <RowDefinition Height="*" />      <!-- body   -->
+        </Grid.RowDefinitions>
+
+        <!-- ══════════════════ Header ═══════════════════════════════════════ -->
+        <Grid Grid.Row="0">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Map" Style="{StaticResource PageTitle}" />
+                <TextBlock
+                    Text="Live SLAM occupancy grid from slam_toolbox. Drive a closed loop and the map closes on itself."
+                    Style="{StaticResource MutedText}"
+                    Margin="0,6,0,0" />
+            </StackPanel>
+
+            <!--
+                Status badge, three states rather than two. "Robot unreachable" and "SLAM not
+                running" look the same on the map — a blank — but mean completely different
+                things: one is a network problem, the other means the stack was launched with
+                slam:=false and no amount of waiting will help.
+            -->
+            <Border
+                HorizontalAlignment="Right"
+                VerticalAlignment="Center"
+                CornerRadius="12"
+                Padding="12,6"
+                Background="{StaticResource CardBackground}"
+                BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="BorderBrush" Value="{StaticResource TextMuted}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SlamRunning}" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource AccentGreen}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Paused}" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource AccentOrange}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,8,0">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="{StaticResource TextMuted}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SlamRunning}" Value="True">
+                                        <Setter Property="Fill" Value="{StaticResource AccentGreen}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Paused}" Value="True">
+                                        <Setter Property="Fill" Value="{StaticResource AccentOrange}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+
+                    <TextBlock
+                        Text="{Binding StatusText}"
+                        Style="{StaticResource BodyText}"
+                        FontFamily="{StaticResource FontSemiBold}"
+                        FontSize="11"
+                        VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ══════════════════ Body ═════════════════════════════════════════ -->
+        <Grid Grid.Row="1" Margin="0,18,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />       <!-- map    -->
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="300" />     <!-- rail   -->
+            </Grid.ColumnDefinitions>
+
+            <!-- ── The map ──────────────────────────────────────────────── -->
+            <Border Grid.Column="0" Style="{StaticResource Card}" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="4,0,4,10">
+                        <TextBlock
+                            Text="OCCUPANCY GRID"
+                            Style="{StaticResource FieldCaption}"
+                            VerticalAlignment="Center" />
+                        <TextBlock
+                            HorizontalAlignment="Right"
+                            Text="{Binding SizeText}"
+                            Style="{StaticResource MutedText}"
+                            FontFamily="{StaticResource FontMono}"
+                            FontSize="11"
+                            VerticalAlignment="Center" />
+                    </Grid>
+
+                    <controls:MapView
+                        Grid.Row="1"
+                        MinHeight="320"
+                        MapImage="{Binding MapImage}"
+                        Resolution="{Binding Resolution}"
+                        OriginX="{Binding OriginX}"
+                        OriginY="{Binding OriginY}"
+                        RobotX="{Binding RobotX}"
+                        RobotY="{Binding RobotY}"
+                        RobotYaw="{Binding RobotYaw}"
+                        RobotValid="{Binding RobotValid}"
+                        PlaceholderText="{Binding PlaceholderText}" />
+                </Grid>
+            </Border>
+
+            <!-- ── Rail ─────────────────────────────────────────────────── -->
+            <ScrollViewer
+                Grid.Column="2"
+                Style="{StaticResource DarkScrollViewer}"
+                VerticalScrollBarVisibility="Auto"
+                HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+
+                    <!-- ── Mapping controls ─────────────────────────── -->
+                    <Border Style="{StaticResource Card}" Padding="18,16">
+                        <StackPanel>
+                            <TextBlock Text="MAPPING" Style="{StaticResource FieldCaption}" />
+
+                            <Button
+                                Content="Save Map"
+                                Style="{StaticResource PrimaryButton}"
+                                Command="{Binding SaveMapCommand}"
+                                Margin="0,10,0,0"
+                                HorizontalAlignment="Stretch"
+                                ToolTip="Write a .pgm and .yaml pair on the robot. Mapping continues." />
+
+                            <Button
+                                Content="{Binding PauseButtonText}"
+                                Style="{StaticResource SecondaryButton}"
+                                Command="{Binding TogglePauseCommand}"
+                                Margin="0,8,0,0"
+                                HorizontalAlignment="Stretch"
+                                ToolTip="Stop feeding scans to the mapper. The map is kept; carrying the robot while paused will not corrupt it." />
+
+                            <!--
+                                Destructive and one button away from Save Map, so it confirms.
+                                It also disables itself permanently if the robot reports no
+                                reset service — retrying that would fail identically.
+                            -->
+                            <Button
+                                Content="Restart Mapping"
+                                Style="{StaticResource DangerButton}"
+                                Command="{Binding RestartMappingCommand}"
+                                Margin="0,8,0,0"
+                                HorizontalAlignment="Stretch"
+                                ToolTip="{Binding RestartTooltip}" />
+
+                            <!-- Busy line. Present only while a service call is in flight;
+                                 these cross a ROS service and can take seconds. -->
+                            <TextBlock
+                                Text="{Binding BusyText}"
+                                Style="{StaticResource MutedText}"
+                                FontSize="11"
+                                Margin="0,10,0,0"
+                                TextWrapping="Wrap"
+                                Visibility="{Binding Busy, Converter={StaticResource BoolToVisibility}}" />
+
+                            <TextBlock
+                                Text="{Binding LastActionMessage}"
+                                FontSize="11"
+                                Margin="0,10,0,0"
+                                TextWrapping="Wrap"
+                                Visibility="{Binding LastActionMessage, Converter={StaticResource StringNotEmptyToVisibility}}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource BodyText}">
+                                        <Setter Property="Foreground" Value="{StaticResource AccentGreen}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding LastActionIsError}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource ErrorText}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ── Robot pose ───────────────────────────────── -->
+                    <Border Style="{StaticResource Card}" Padding="18,16" Margin="0,14,0,0">
+                        <StackPanel>
+                            <TextBlock Text="POSE IN MAP FRAME" Style="{StaticResource FieldCaption}" />
+
+                            <!--
+                                From TF, not from odometry: this includes the map→odom
+                                correction, which is exactly the jump you want to see at loop
+                                closure. When TF has no answer the marker is hidden rather
+                                than drawn at the origin, which would claim the robot is
+                                somewhere it is not.
+                            -->
+                            <Grid Margin="0,8,0,0"
+                                  Visibility="{Binding RobotValid, Converter={StaticResource BoolToVisibility}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="X" Style="{StaticResource FieldCaption}" />
+                                    <TextBlock Text="{Binding RobotX, StringFormat={}{0:0.00}}"
+                                               Style="{StaticResource FieldValue}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Y" Style="{StaticResource FieldCaption}" />
+                                    <TextBlock Text="{Binding RobotY, StringFormat={}{0:0.00}}"
+                                               Style="{StaticResource FieldValue}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="YAW" Style="{StaticResource FieldCaption}" />
+                                    <TextBlock Text="{Binding RobotYaw, StringFormat={}{0:0.00}}"
+                                               Style="{StaticResource FieldValue}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock
+                                Text="No map→base_link transform yet."
+                                Style="{StaticResource MutedText}"
+                                FontSize="11"
+                                Margin="0,8,0,0"
+                                TextWrapping="Wrap"
+                                Visibility="{Binding RobotValid, Converter={StaticResource InvertBoolToVisibility}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ── Saved maps ───────────────────────────────── -->
+                    <Border Style="{StaticResource Card}" Padding="18,16" Margin="0,14,0,0">
+                        <StackPanel>
+                            <Grid>
+                                <TextBlock Text="SAVED ON ROBOT" Style="{StaticResource FieldCaption}"
+                                           VerticalAlignment="Center" />
+                                <Button
+                                    HorizontalAlignment="Right"
+                                    Content="Refresh"
+                                    Style="{StaticResource GhostButton}"
+                                    FontSize="10"
+                                    Padding="8,3"
+                                    Command="{Binding ReloadSavedMapsCommand}" />
+                            </Grid>
+
+                            <TextBlock
+                                Text="{Binding MapsDirectory}"
+                                Style="{StaticResource MutedText}"
+                                FontFamily="{StaticResource FontMono}"
+                                FontSize="10"
+                                Margin="0,2,0,0"
+                                TextTrimming="CharacterEllipsis" />
+
+                            <ItemsControl
+                                ItemsSource="{Binding SavedMaps}"
+                                Margin="0,10,0,0"
+                                Visibility="{Binding HasSavedMaps, Converter={StaticResource BoolToVisibility}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border
+                                            Background="{StaticResource BadgeBackground}"
+                                            CornerRadius="6"
+                                            Padding="10,8"
+                                            Margin="0,0,0,6">
+                                            <StackPanel>
+                                                <TextBlock
+                                                    Text="{Binding Name}"
+                                                    Style="{StaticResource BodyText}"
+                                                    FontSize="12"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                                    <TextBlock Text="{Binding SavedAtText}"
+                                                               Style="{StaticResource MutedText}" FontSize="10" />
+                                                    <TextBlock Text="  ·  " Style="{StaticResource MutedText}" FontSize="10" />
+                                                    <TextBlock Text="{Binding SizeText}"
+                                                               Style="{StaticResource MutedText}" FontSize="10" />
+                                                </StackPanel>
+
+                                                <!-- A .pgm without its .yaml is not loadable by
+                                                     map_server, so it is worth flagging rather
+                                                     than quietly listing as if it were fine. -->
+                                                <TextBlock
+                                                    Text="missing .yaml"
+                                                    Foreground="{StaticResource WarningText}"
+                                                    FontSize="10"
+                                                    Margin="0,3,0,0"
+                                                    Visibility="{Binding HasYaml, Converter={StaticResource InvertBoolToVisibility}}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock
+                                Text="No maps saved yet."
+                                Style="{StaticResource MutedText}"
+                                FontSize="11"
+                                Margin="0,10,0,0"
+                                Visibility="{Binding HasSavedMaps, Converter={StaticResource InvertBoolToVisibility}}" />
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

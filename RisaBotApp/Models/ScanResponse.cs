@@ -40,12 +40,8 @@ public class WifiNetwork
         _     => 1
     };
 
-    [JsonIgnore]
-    public string SignalIcon => SignalBars switch
-    {
-        4 => "wifi_4.png",
-        3 => "wifi_3.png",
-        2 => "wifi_2.png",
-        _ => "wifi_1.png"
-    };
+    // SignalIcon used to live here, returning wifi_1.png … wifi_4.png. Those were MAUI
+    // Resources/Images entries that this project never carried over — the strength meter is
+    // drawn as geometry in WifiSetupView now — so all it did was name four files that do not
+    // exist.
 }

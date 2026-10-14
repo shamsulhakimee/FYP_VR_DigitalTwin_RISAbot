@@ -1,0 +1,196 @@
+<UserControl
+    x:Class="RisaBotApp.Controls.ActionPriorityBar"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!--
+        The hybrid action priority chain, mirroring the flow bar in the web dashboard.
+
+        Six behaviours in ascending priority, left to right, with an arrow between each pair
+        pointing back down the chain: the arrow says "this one overrides that one". The active
+        behaviour is lit; everything of lower priority is marked as overridden rather than
+        greyed out, because "lane following is still running underneath" and "lane following
+        is not available" are different things and the driver needs to tell them apart.
+
+        Which node is which is fixed, so this is six named elements rather than an ItemsControl
+        over a collection — there is nothing to template and no data to bind per item. The
+        code-behind sets Tag on each; every visual consequence of that lives here.
+    -->
+
+    <UserControl.Resources>
+
+        <!-- The node's outer cell. Tag is set from code to null, "done" or "active"; the box
+             and the tick below both read it off this ancestor so that one assignment drives
+             the whole node. -->
+        <Style x:Key="FlowNode" TargetType="Grid">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,3,0,3" />
+        </Style>
+
+        <Style x:Key="FlowNodeBox" TargetType="Border">
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="#14FFFFFF" />
+            <Setter Property="BorderBrush" Value="{StaticResource Divider}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="TextElement.Foreground" Value="{StaticResource TextMuted}" />
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+            <Style.Triggers>
+
+                <!-- Overridden, but still running underneath. -->
+                <DataTrigger
+                    Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=Grid}}"
+                    Value="done">
+                    <Setter Property="Background" Value="#2600C853" />
+                    <Setter Property="BorderBrush" Value="#4D00C853" />
+                    <Setter Property="TextElement.Foreground" Value="#81C784" />
+                </DataTrigger>
+
+                <!-- The one behaviour actually driving the robot this tick. The web version
+                     pulses this with a keyframe glow; here it is a static lift. An animation
+                     that never stops keeps the render thread busy for the whole run, and the
+                     scale plus the brand gradient already carry the emphasis. -->
+                <DataTrigger
+                    Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=Grid}}"
+                    Value="active">
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentBlue}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource TextPrimary}" />
+                    <Setter Property="Background">
+                        <Setter.Value>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#3391102F" Offset="0" />
+                                <GradientStop Color="#33D4294A" Offset="1" />
+                            </LinearGradientBrush>
+                        </Setter.Value>
+                    </Setter>
+                    <Setter Property="RenderTransform">
+                        <Setter.Value>
+                            <ScaleTransform ScaleX="1.06" ScaleY="1.06" />
+                        </Setter.Value>
+                    </Setter>
+                </DataTrigger>
+
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="FlowNodeText" TargetType="TextBlock">
+            <!-- No Foreground here on purpose: it inherits from the Border above, which is
+                 where the state triggers set it. -->
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- The corner tick on an overridden node. -->
+        <Style x:Key="FlowNodeCheck" TargetType="Border">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Background" Value="{StaticResource AccentGreen}" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Margin" Value="0,-5,-5,0" />
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+                <DataTrigger
+                    Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=Grid}}"
+                    Value="done">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="FlowArrow" TargetType="TextBlock">
+            <Setter Property="Text" Value="&#x25C0;" />
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="4,0" />
+            <Setter Property="Foreground" Value="{StaticResource Divider}" />
+            <Style.Triggers>
+                <Trigger Property="Tag" Value="passed">
+                    <Setter Property="Foreground" Value="{StaticResource AccentGreen}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+    </UserControl.Resources>
+
+    <!-- Wraps rather than scrolls. In the narrow left column the chain would otherwise be
+         clipped, and a hidden node is worse than a chain that runs onto a second line. -->
+    <WrapPanel Orientation="Horizontal">
+
+        <Grid x:Name="NodeLaneFollow" Style="{StaticResource FlowNode}">
+            <Border Style="{StaticResource FlowNodeBox}">
+                <TextBlock Text="Lane Follow" Style="{StaticResource FlowNodeText}" />
+            </Border>
+            <Border Style="{StaticResource FlowNodeCheck}">
+                <TextBlock Text="&#x2713;" FontSize="9" Foreground="White"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+        </Grid>
+
+        <TextBlock x:Name="ArrowLaneTunnel" Style="{StaticResource FlowArrow}" />
+
+        <Grid x:Name="NodeTunnel" Style="{StaticResource FlowNode}">
+            <Border Style="{StaticResource FlowNodeBox}">
+                <TextBlock Text="Tunnel" Style="{StaticResource FlowNodeText}" />
+            </Border>
+            <Border Style="{StaticResource FlowNodeCheck}">
+                <TextBlock Text="&#x2713;" FontSize="9" Foreground="White"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+        </Grid>
+
+        <TextBlock x:Name="ArrowTunnelObstruction" Style="{StaticResource FlowArrow}" />
+
+        <Grid x:Name="NodeObstruction" Style="{StaticResource FlowNode}">
+            <Border Style="{StaticResource FlowNodeBox}">
+                <TextBlock Text="Obstruction" Style="{StaticResource FlowNodeText}" />
+            </Border>
+            <Border Style="{StaticResource FlowNodeCheck}">
+                <TextBlock Text="&#x2713;" FontSize="9" Foreground="White"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+        </Grid>
+
+        <TextBlock x:Name="ArrowObstructionGate" Style="{StaticResource FlowArrow}" />
+
+        <Grid x:Name="NodeBoomGate" Style="{StaticResource FlowNode}">
+            <Border Style="{StaticResource FlowNodeBox}">
+                <TextBlock Text="Boom Gate" Style="{StaticResource FlowNodeText}" />
+            </Border>
+            <Border Style="{StaticResource FlowNodeCheck}">
+                <TextBlock Text="&#x2713;" FontSize="9" Foreground="White"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+        </Grid>
+
+        <TextBlock x:Name="ArrowGateTrafficLight" Style="{StaticResource FlowArrow}" />
+
+        <Grid x:Name="NodeTrafficLight" Style="{StaticResource FlowNode}">
+            <Border Style="{StaticResource FlowNodeBox}">
+                <TextBlock Text="Traffic Light" Style="{StaticResource FlowNodeText}" />
+            </Border>
+            <Border Style="{StaticResource FlowNodeCheck}">
+                <TextBlock Text="&#x2713;" FontSize="9" Foreground="White"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+        </Grid>
+
+        <TextBlock x:Name="ArrowTrafficLightManual" Style="{StaticResource FlowArrow}" />
+
+        <Grid x:Name="NodeManual" Style="{StaticResource FlowNode}">
+            <Border Style="{StaticResource FlowNodeBox}">
+                <TextBlock Text="Manual Control" Style="{StaticResource FlowNodeText}" />
+            </Border>
+            <Border Style="{StaticResource FlowNodeCheck}">
+                <TextBlock Text="&#x2713;" FontSize="9" Foreground="White"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+        </Grid>
+
+    </WrapPanel>
+</UserControl>

@@ -1,0 +1,1407 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Every interactive control here carries a full ControlTemplate rather than a
+        Style over the stock one. WPF's default Aero chrome paints its own gradient
+        and hover brush and ignores Background once the mouse enters, which on a dark
+        palette shows up as a grey flash. Re-templating is the only reliable fix.
+    -->
+
+    <!-- ══════════════════════ Text ══════════════════════════════════════ -->
+
+    <Style x:Key="BodyText" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontRegular}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="MutedText" TargetType="TextBlock" BasedOn="{StaticResource BodyText}">
+        <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+    </Style>
+
+    <!-- Small all-caps-ish label sitting above a value -->
+    <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource MutedText}">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+
+    <!-- Heading inside a card -->
+    <Style x:Key="CardTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontSemiBold}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+        <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+
+    <Style x:Key="PageTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontRegular}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="26" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+    </Style>
+
+    <!-- Large numeric readout -->
+    <Style x:Key="MetricValue" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontRegular}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="22" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+
+    <Style x:Key="MetricValueSmall" TargetType="TextBlock" BasedOn="{StaticResource MetricValue}">
+        <Setter Property="FontSize" Value="17" />
+    </Style>
+
+    <Style x:Key="EmojiText" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontEmoji}" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+
+    <!-- ══════════════════════ Card ══════════════════════════════════════ -->
+
+    <Style x:Key="Card" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource CardBackground}" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Padding" Value="20" />
+    </Style>
+
+    <Style x:Key="Badge" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource BadgeBackground}" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="10,5" />
+        <Setter Property="Margin" Value="0,0,8,8" />
+    </Style>
+
+    <!-- ══════════════════════ Dashboard ═════════════════════════════════
+         Styles the telemetry cards share. Kept together rather than filed under
+         Text/Card above, because they are one visual language and changing one of
+         them almost always means changing its neighbours.                        -->
+
+    <!--
+        The card heading. The web version is 0.65em uppercase with 2.5px of tracking;
+        the size and weight carry over but the tracking does not — WPF has no letter-
+        spacing on TextBlock, and the workarounds (a Run per character, or a custom
+        FormattedText element) cost more than the effect is worth on a heading. Set
+        the text itself in capitals at the usage site; there is no text-transform
+        either.
+    -->
+    <Style x:Key="CardHeading" TargetType="TextBlock" BasedOn="{StaticResource BodyText}">
+        <Setter Property="FontFamily" Value="{StaticResource FontSemiBold}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- A card that holds live numbers. Same surface as Card, plus a hairline: the
+         dashboard puts a dozen of these side by side, and without an edge they merge
+         into one another where two cards meet. -->
+    <Style x:Key="TelemetryCard" TargetType="Border" BasedOn="{StaticResource Card}">
+        <Setter Property="BorderBrush" Value="{StaticResource Divider}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="16" />
+    </Style>
+
+    <!--
+        Numbers that change every tick. Tabular figures stop the readout jittering
+        sideways as digits swap — proportional numerals give '1' a narrower advance
+        than '0', so a value crossing 0.19 → 0.20 visibly shifts the whole line.
+    -->
+    <Style x:Key="TelemetryValue" TargetType="TextBlock" BasedOn="{StaticResource BodyText}">
+        <Setter Property="FontFamily" Value="{StaticResource FontSemiBold}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+    </Style>
+
+    <Style x:Key="TelemetryValueLarge" TargetType="TextBlock" BasedOn="{StaticResource MetricValue}">
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+    </Style>
+
+    <!-- The state pill. Both brushes come from the bound state name via
+         StateBadgeBackground/StateBadgeForeground, so nothing here sets a colour. -->
+    <Style x:Key="StatePill" TargetType="Border">
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="14,6" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+
+    <Style x:Key="StatePillText" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontSemiBold}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+
+    <!-- AUTO/MANUAL. Smaller and squarer than the state pill on purpose: it sits
+         beside it, and two pills of the same weight would compete. -->
+    <Style x:Key="ModeBadge" TargetType="Border">
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="ModeBadgeText" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontSemiBold}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+
+    <!-- ══════════════════════ Buttons ═══════════════════════════════════ -->
+
+    <!--
+        Base button. Corner radius, hover and pressed states are all driven from the
+        template; derived styles only change Background/Foreground. Disabled drops
+        opacity rather than swapping brushes so any accent colour degrades sensibly.
+
+        Hover and disabled are eased; the press is not. That split is deliberate — a
+        pointer entering a button is ambient, and a fade reads as the control noticing;
+        a click is a commitment, and any delay between the mouse going down and the
+        button acknowledging it reads as lag. So the press squashes on the same frame.
+
+        Opacity is animated by every state that touches it rather than set by some and
+        animated by others. A held animation outranks a Setter in WPF's value precedence,
+        so one animated state would permanently mask the rest: the first hover would work
+        and the button would then never dim when disabled again.
+    -->
+    <Style x:Key="BaseButton" TargetType="Button">
+        <Setter Property="FontFamily" Value="{StaticResource FontSemiBold}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="{StaticResource AccentBlue}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="16,0" />
+        <Setter Property="Height" Value="42" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="11"
+                            RenderTransformOrigin="0.5,0.5">
+                        <!-- Animations reach this through Root's RenderTransform property
+                             path rather than by name. A Freezable inside a template is not
+                             a trigger target — MC4111 — so naming it only works for half
+                             the cases and fails at compile time for the other half. -->
+                        <Border.RenderTransform>
+                            <ScaleTransform />
+                        </Border.RenderTransform>
+                        <ContentPresenter
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Margin="{TemplateBinding Padding}"
+                            RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="Opacity"
+                                            To="0.88" Duration="0:0:0.12" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="Opacity"
+                                            To="1" Duration="0:0:0.18" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+
+                        <!-- The press works the scale, not the opacity, so it never competes
+                             with the hover fade for the same property. 60 ms down is fast
+                             enough to feel like the button moved under the finger rather
+                             than after it. -->
+                        <Trigger Property="IsPressed" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                            To="0.97" Duration="0:0:0.06" />
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                            To="0.97" Duration="0:0:0.06" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                            To="1" Duration="0:0:0.14">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                            To="1" Duration="0:0:0.14">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Cursor" Value="Arrow" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="Opacity"
+                                            To="0.35" Duration="0:0:0.14" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="Opacity"
+                                            To="1" Duration="0:0:0.14" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+        <Setter Property="Background" Value="{StaticResource AccentBlue}" />
+    </Style>
+
+    <!--
+        A whole card that happens to be clickable — the discovery robot rows.
+        Not BasedOn BaseButton: that one is a fixed-height pill with centred content,
+        and everything about it would have to be overridden. Hover lifts the border to
+        the accent rather than dimming the fill, since dimming a large surface reads as
+        "disabled" instead of "hovered".
+    -->
+    <Style x:Key="CardButton" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource CardBackground}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Divider}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="20" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="14"
+                            Padding="{TemplateBinding Padding}">
+                        <Border.RenderTransform>
+                            <TranslateTransform />
+                        </Border.RenderTransform>
+                        <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <!-- The border already goes accent on hover; the 2px lift is what
+                             makes a full-width row read as one object rather than as a
+                             rectangle that changed colour. It settles back slower than it
+                             rises, which is what stops a list of these feeling twitchy as
+                             the pointer crosses it. -->
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource AccentBlue}" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                            To="-2" Duration="0:0:0.14">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                            To="0" Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource AccentBlue}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.8" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Card-coloured button for secondary actions; reads as a raised surface -->
+    <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+        <Setter Property="Background" Value="{StaticResource CardBackground}" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Divider}" />
+    </Style>
+
+    <Style x:Key="OutlineGreenButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource AccentGreen}" />
+        <Setter Property="BorderBrush" Value="{StaticResource AccentGreen}" />
+    </Style>
+
+    <Style x:Key="WarningButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+        <Setter Property="Background" Value="{StaticResource AccentOrange}" />
+    </Style>
+
+    <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+        <Setter Property="Background" Value="{StaticResource ErrorBackground}" />
+        <Setter Property="Foreground" Value="{StaticResource ErrorText}" />
+        <Setter Property="BorderBrush" Value="{StaticResource ErrorText}" />
+    </Style>
+
+    <!-- Text-only affordance; no fill until hovered -->
+    <Style x:Key="GhostButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource AccentBlue}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Padding" Value="10,0" />
+    </Style>
+
+    <!-- ══════════════════════ Sidebar navigation ════════════════════════ -->
+
+    <!--
+        Nav entries are RadioButtons in a shared group: exactly one stays checked,
+        which is the selection semantics we want, without hand-writing the mutual
+        exclusion the MAUI tab bar did in code-behind.
+    -->
+    <Style x:Key="NavButton" TargetType="RadioButton">
+        <Setter Property="FontFamily" Value="{StaticResource FontSemiBold}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Margin" Value="10,2" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid>
+                        <Border x:Name="Root" Background="Transparent" CornerRadius="10" Height="42" />
+                        <!-- Active marker on the leading edge. It grows out of the edge
+                             rather than appearing: Visibility flips instantly, and the
+                             scale underneath it runs from nothing to full height, so the
+                             eye follows the selection moving down the list instead of
+                             finding it already there. Anchored at the middle of the left
+                             edge so it opens symmetrically. -->
+                        <Border x:Name="Marker"
+                                Width="3" HorizontalAlignment="Left"
+                                Margin="0,9" CornerRadius="2"
+                                Background="{StaticResource AccentBlue}"
+                                RenderTransformOrigin="0,0.5"
+                                Visibility="Collapsed">
+                            <Border.RenderTransform>
+                                <ScaleTransform ScaleY="0" />
+                            </Border.RenderTransform>
+                        </Border>
+                        <ContentPresenter VerticalAlignment="Center" Margin="16,0,12,0" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource CardBackground}" />
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource CardBackground}" />
+                            <Setter TargetName="Marker" Property="Visibility" Value="Visible" />
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="Marker"
+                                            Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                            To="1" Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="Marker"
+                                            Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                            To="0" Duration="0:0:0.12" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Camera view switcher — same radio semantics, pill shape.
+
+        Targets ToggleButton rather than RadioButton so the same pill can be used either
+        as a mutually-exclusive group (the camera views, via RadioButton) or as a standalone
+        on/off (the logs errors-only filter, via ToggleButton). RadioButton derives from
+        ToggleButton, so the style still applies to both.
+    -->
+    <Style x:Key="ViewSwitchButton" TargetType="ToggleButton">
+        <Setter Property="FontFamily" Value="{StaticResource FontSemiBold}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Root"
+                            Background="{StaticResource CardBackground}"
+                            BorderBrush="{StaticResource Divider}"
+                            BorderThickness="1"
+                            CornerRadius="10"
+                            Height="36"
+                            RenderTransformOrigin="0.5,0.5">
+                        <Border.RenderTransform>
+                            <ScaleTransform />
+                        </Border.RenderTransform>
+                        <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" Margin="14,0" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                        </Trigger>
+
+                        <!-- Selecting a tab pops it: 1 → 1.06 → 1 over a fifth of a second.
+                             The fill turns accent-blue on the same frame either way, so this
+                             adds no delay — it is there to tie the colour change to the click
+                             that caused it, which matters most for the camera view switcher,
+                             where the picture behind the tabs takes a moment to follow. -->
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource AccentBlue}" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource AccentBlue}" />
+                            <Setter Property="Foreground" Value="White" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimationUsingKeyFrames
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)">
+                                            <EasingDoubleKeyFrame KeyTime="0:0:0.09" Value="1.06" />
+                                            <EasingDoubleKeyFrame KeyTime="0:0:0.20" Value="1">
+                                                <EasingDoubleKeyFrame.EasingFunction>
+                                                    <CubicEase EasingMode="EaseOut" />
+                                                </EasingDoubleKeyFrame.EasingFunction>
+                                            </EasingDoubleKeyFrame>
+                                        </DoubleAnimationUsingKeyFrames>
+                                        <DoubleAnimationUsingKeyFrames
+                                            Storyboard.TargetName="Root"
+                                            Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)">
+                                            <EasingDoubleKeyFrame KeyTime="0:0:0.09" Value="1.06" />
+                                            <EasingDoubleKeyFrame KeyTime="0:0:0.20" Value="1">
+                                                <EasingDoubleKeyFrame.EasingFunction>
+                                                    <CubicEase EasingMode="EaseOut" />
+                                                </EasingDoubleKeyFrame.EasingFunction>
+                                            </EasingDoubleKeyFrame>
+                                        </DoubleAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                        </Trigger>
+
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.35" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══════════════════════ Inputs ════════════════════════════════════ -->
+
+    <Style x:Key="DarkTextBox" TargetType="TextBox">
+        <Setter Property="FontFamily" Value="{StaticResource FontRegular}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+        <Setter Property="Background" Value="{StaticResource PageBackground}" />
+        <Setter Property="CaretBrush" Value="{StaticResource AccentBlue}" />
+        <Setter Property="SelectionBrush" Value="{StaticResource AccentBlue}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Divider}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,10" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="10">
+                        <Grid>
+                            <!--
+                                WPF has no watermark. The placeholder is whatever string sits
+                                in Tag, drawn underneath the content host and hidden the moment
+                                Text is non-empty. IsHitTestVisible=False so clicking the
+                                placeholder still lands in the text box.
+                            -->
+                            <TextBlock x:Name="Placeholder"
+                                       Text="{TemplateBinding Tag}"
+                                       Foreground="{StaticResource TextMuted}"
+                                       Margin="{TemplateBinding Padding}"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       Visibility="Collapsed" />
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Text" Value="">
+                            <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter Property="BorderBrush" Value="{StaticResource AccentBlue}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DarkPasswordBox" TargetType="PasswordBox">
+        <Setter Property="FontFamily" Value="{StaticResource FontRegular}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+        <Setter Property="Background" Value="{StaticResource PageBackground}" />
+        <Setter Property="CaretBrush" Value="{StaticResource AccentBlue}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Divider}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,10" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="PasswordBox">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="10">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
+                                      VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter Property="BorderBrush" Value="{StaticResource AccentBlue}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        The same field with the box taken off, for the flat network table.
+        DarkPasswordBox is a filled, 1px-outlined, 10px-radius input built for the
+        card screens; dropped inside a ruled row it reads as a stray control that
+        wandered in from another layout. What is actually load-bearing in a text
+        field is the line under it, so that is all this keeps.
+    -->
+    <Style x:Key="FlatPasswordBox" TargetType="PasswordBox">
+        <Setter Property="FontFamily" Value="{StaticResource FontRegular}" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="CaretBrush" Value="{StaticResource AccentBlue}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Divider}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="Padding" Value="0,0,0,9" />
+        <!-- The underline is the focus indicator; a dotted rectangle on top of it
+             would be a second, uglier answer to the same question. -->
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="PasswordBox">
+                    <Grid>
+                        <Border x:Name="Rule"
+                                Background="Transparent"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center" />
+                        </Border>
+                        <!-- Focus draws a second, thicker line over the hairline instead
+                             of recolouring it. One pixel going from grey to blue is easy
+                             to miss on this palette, and 2px of accent is the same
+                             gesture the selected row already makes down its left edge. -->
+                        <Border x:Name="FocusRule"
+                                Height="2"
+                                VerticalAlignment="Bottom"
+                                Background="{StaticResource AccentBlue}"
+                                Opacity="0"
+                                SnapsToDevicePixels="True" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Rule" Property="BorderBrush" Value="{StaticResource TextMuted}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="FocusRule" Property="Opacity" Value="1" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══════════════════════ Scrolling ═════════════════════════════════ -->
+
+    <!-- Slim overlay scrollbar; the stock one is a light-grey slab on this palette -->
+    <Style x:Key="SlimScrollBar" TargetType="ScrollBar">
+        <Setter Property="Width" Value="8" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Grid Background="Transparent">
+                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                            <Track.Thumb>
+                                <Thumb>
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border Background="{StaticResource Divider}"
+                                                    CornerRadius="4" Margin="2,0" />
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" />
+                            </Track.IncreaseRepeatButton>
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" />
+                            </Track.DecreaseRepeatButton>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DarkScrollViewer" TargetType="ScrollViewer">
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollViewer">
+                    <!--
+                        Two columns rather than an overlay. The bar used to sit in the same
+                        cell as the content, which looks tidy on a page with generous
+                        padding and is unreadable on a dense one: 8px of thumb landing on
+                        top of a right-aligned value clips the last letter of CLEAR or OPEN.
+                        Its column is Auto and the bar collapses when there is nothing to
+                        scroll, so no width is reserved on the pages that never scroll.
+                    -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ScrollContentPresenter Grid.Column="0" />
+                        <ScrollBar x:Name="PART_VerticalScrollBar"
+                                   Grid.Column="1"
+                                   Margin="4,0,0,0"
+                                   Style="{StaticResource SlimScrollBar}"
+                                   HorizontalAlignment="Right"
+                                   Orientation="Vertical"
+                                   Value="{TemplateBinding VerticalOffset}"
+                                   Maximum="{TemplateBinding ScrollableHeight}"
+                                   ViewportSize="{TemplateBinding ViewportHeight}"
+                                   Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══════════════════════ Lists ═════════════════════════════════════ -->
+
+    <!-- Selection-free list: rows are read-only or carry their own click handler -->
+    <Style x:Key="PlainListBox" TargetType="ListBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="ItemContainerStyle">
+            <Setter.Value>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListBoxItem">
+                                <ContentPresenter />
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Clickable row: hover feedback, still no selection highlight -->
+    <Style x:Key="ClickableListBox" TargetType="ListBox" BasedOn="{StaticResource PlainListBox}">
+        <Setter Property="ItemContainerStyle">
+            <Setter.Value>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListBoxItem">
+                                <Border x:Name="Root" Background="Transparent" CornerRadius="14">
+                                    <ContentPresenter />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Root" Property="Opacity" Value="0.82" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Focus ring for the discovery cards, supplied as a FocusVisualStyle rather than an
+        IsKeyboardFocused trigger. The trigger version cannot tell the two ways of focusing
+        a card apart: clicking one focuses it as well as selecting it, so after clicking the
+        same card again to deselect, the trigger would keep the outline lit on a card that
+        is no longer chosen. WPF only draws a focus visual when the keyboard was the most
+        recent input device, which is exactly the distinction that is wanted — the ring
+        appears when arrowing through the grid and never after a click.
+
+        Untargeted Style with a fully-qualified Control.Template setter: that is the
+        convention for focus visuals, which are applied to an adorner rather than to the
+        focused element itself.
+    -->
+    <Style x:Key="ChoiceCardFocusVisual">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border BorderBrush="{StaticResource AccentBlue}"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Opacity="0.55"
+                            SnapsToDevicePixels="True" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Choice grid: the discovery cards. Selection is a real ListBox selection rather
+        than a set of buttons tracking a view-model flag, which buys arrow-key movement
+        between cards and Ctrl+Home/End for free, and means SelectedItem is the single
+        source of truth about what is picked.
+
+        Three visual states, deliberately distinct rather than graded: resting is a flat
+        borderless block of fill, hover raises the card and brings a faint edge up out of
+        the background, and selection is the only state that draws a real outline — lit
+        accent, an inner ring and a halo. Reserving the outline entirely for selection is
+        what makes "which one did I pick" answerable from across the room; a resting
+        border competes with it and a hovered card starts getting mistaken for the chosen
+        one. Hover stays a *transform* change for the same reason.
+
+        The card reads as a card without a resting border because CardBackground sits a
+        step above PageBackground — the edge is a value change rather than a stroke.
+
+        Colour changes stay as plain Setters and only the transforms and the pulse are
+        animated. A storyboard outranks a trigger Setter permanently once it has run, so
+        animating a property that a Setter also touches would freeze that property at the
+        animation's last value for the life of the card.
+
+        Everything the card does at rest stays inside its layout slot; everything it does
+        on hover or selection does not. The lift, the pulse and the halo all reach past the
+        card's own bounds, and the ScrollViewer around the grid clips to its viewport, so
+        the outermost cards would lose whichever side of that overflow ran into the edge.
+        Hence the uniform 8px container margin below rather than the bottom-right-only
+        gutter this started with: it is not spacing between cards so much as headroom for
+        the effects, and the blur radius and pulse scale further down are both sized to fit
+        inside it. Grow one of those and this has to grow with it.
+
+        The item template supplies the card's inner padding, not the container — a
+        container-level Padding would sit inside the border and fight the fixed card size.
+    -->
+    <Style x:Key="ChoiceCardListBox" TargetType="ListBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="ItemContainerStyle">
+            <Setter.Value>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="Margin" Value="8" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="FocusVisualStyle" Value="{StaticResource ChoiceCardFocusVisual}" />
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                    <Setter Property="SnapsToDevicePixels" Value="True" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListBoxItem">
+                                <!--
+                                    Wrap carries the lift and the press squash for the whole
+                                    card, content included. Scaling the border alone would
+                                    slide the artwork out from under its own frame.
+                                -->
+                                <Grid x:Name="Wrap" RenderTransformOrigin="0.5,0.5">
+                                    <Grid.RenderTransform>
+                                        <TransformGroup>
+                                            <ScaleTransform ScaleX="1" ScaleY="1" />
+                                            <TranslateTransform Y="0" />
+                                        </TransformGroup>
+                                    </Grid.RenderTransform>
+
+                                    <!--
+                                        Transparent rather than no border: the 1px is still
+                                        laid out, so lighting it on selection recolours an
+                                        existing stroke instead of adding one, and the
+                                        content underneath never shifts by a pixel.
+                                    -->
+                                    <Border x:Name="Root"
+                                            Background="{StaticResource CardBackground}"
+                                            BorderBrush="Transparent"
+                                            BorderThickness="1"
+                                            CornerRadius="12" />
+                                    <!--
+                                        Selection ring, inset by one pixel and drawn as its
+                                        own element rather than by thickening Root's border:
+                                        growing a border pushes the content and the whole
+                                        card twitches at the moment of selection.
+                                    -->
+                                    <Border x:Name="Ring"
+                                            Margin="1"
+                                            BorderBrush="{StaticResource AccentBlue}"
+                                            BorderThickness="1"
+                                            CornerRadius="11"
+                                            Opacity="0" />
+                                    <!--
+                                        One-shot pulse: a copy of the card's outline that
+                                        expands past the edge and fades as it goes, so the
+                                        click reads as landing somewhere rather than as the
+                                        colours simply having changed. Sits above Root but
+                                        below the content, hit-test transparent, and resting
+                                        at zero opacity so it costs nothing until fired.
+
+                                        It grows into the 14px gutter between cards, which is
+                                        why the gutter is there at all.
+                                    -->
+                                    <Border x:Name="Pulse"
+                                            BorderBrush="{StaticResource AccentBlue}"
+                                            BorderThickness="1"
+                                            CornerRadius="12"
+                                            Opacity="0"
+                                            IsHitTestVisible="False"
+                                            RenderTransformOrigin="0.5,0.5">
+                                        <Border.RenderTransform>
+                                            <ScaleTransform ScaleX="1" ScaleY="1" />
+                                        </Border.RenderTransform>
+                                    </Border>
+                                    <ContentPresenter />
+                                </Grid>
+                                <ControlTemplate.Triggers>
+
+                                    <!-- ── hover: 3px lift, nothing else moves ─────── -->
+                                    <EventTrigger RoutedEvent="MouseEnter">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="Wrap"
+                                                    Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)"
+                                                    To="-3" Duration="0:0:0.16">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <CubicEase EasingMode="EaseOut" />
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+
+                                    <!--
+                                        Leaving also undoes the press. The button can be
+                                        released outside the card — or never released, if the
+                                        drag turns into a scroll — and without this the card
+                                        would stay squashed with nothing to un-squash it.
+                                    -->
+                                    <EventTrigger RoutedEvent="MouseLeave">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="Wrap"
+                                                    Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)"
+                                                    To="0" Duration="0:0:0.22">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <CubicEase EasingMode="EaseOut" />
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="Wrap"
+                                                    Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"
+                                                    To="1" Duration="0:0:0.22" />
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="Wrap"
+                                                    Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"
+                                                    To="1" Duration="0:0:0.22" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+
+                                    <!--
+                                        Press. Fast down, slower up with a slight overshoot —
+                                        the asymmetry is what makes it feel like a physical
+                                        button rather than a size change. Preview events, so
+                                        the card reacts even when the click lands on a label
+                                        inside it.
+                                    -->
+                                    <EventTrigger RoutedEvent="PreviewMouseLeftButtonDown">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="Wrap"
+                                                    Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"
+                                                    To="0.955" Duration="0:0:0.07" />
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="Wrap"
+                                                    Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"
+                                                    To="0.955" Duration="0:0:0.07" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+
+                                    <EventTrigger RoutedEvent="PreviewMouseLeftButtonUp">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="Wrap"
+                                                    Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"
+                                                    To="1" Duration="0:0:0.32">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <BackEase EasingMode="EaseOut" Amplitude="0.55" />
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                                <DoubleAnimation
+                                                    Storyboard.TargetName="Wrap"
+                                                    Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"
+                                                    To="1" Duration="0:0:0.32">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <BackEase EasingMode="EaseOut" Amplitude="0.55" />
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+
+                                    <!-- ── states ──────────────────────────────────── -->
+
+                                    <!--
+                                        Hover's edge is Divider, one step off the fill and
+                                        deliberately weaker than anything else here. It is a
+                                        hint that the card is live, not an outline — the lit
+                                        outline belongs to selection alone, and the lift is
+                                        doing most of the work anyway.
+                                    -->
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource Divider}" />
+                                    </Trigger>
+
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource AccentBlue}" />
+                                        <Setter TargetName="Root" Property="Background" Value="#16233C" />
+                                        <Setter TargetName="Ring" Property="Opacity" Value="0.45" />
+                                        <!--
+                                            The halo. ShadowDepth 0 turns a drop shadow into a
+                                            glow, which is the one thing in the card that is
+                                            genuinely not reproducible with a border. Only ever
+                                            on one card at a time, so the shader pass it costs
+                                            does not multiply with the number of devices found.
+
+                                            BlurRadius is capped at the 8px container margin,
+                                            not chosen for looks: a wider blur on a card in the
+                                            first row or the leftmost column would run into the
+                                            ScrollViewer's clip and come out with a straight
+                                            edge on that side.
+                                        -->
+                                        <Setter TargetName="Root" Property="Effect">
+                                            <Setter.Value>
+                                                <DropShadowEffect Color="#2979FF"
+                                                                  BlurRadius="16"
+                                                                  ShadowDepth="0"
+                                                                  Opacity="0.6" />
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Trigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <!--
+                                                        Fires on arrow-key movement as well as
+                                                        clicks, because it hangs off the state
+                                                        and not off the mouse. That is the point:
+                                                        keyboard selection should confirm itself
+                                                        the same way.
+                                                    -->
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetName="Pulse"
+                                                        Storyboard.TargetProperty="Opacity"
+                                                        From="0.8" To="0" Duration="0:0:0.5" />
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetName="Pulse"
+                                                        Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                        From="1" To="1.07" Duration="0:0:0.5">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <CubicEase EasingMode="EaseOut" />
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetName="Pulse"
+                                                        Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                        From="1" To="1.075" Duration="0:0:0.5">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <CubicEase EasingMode="EaseOut" />
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </Trigger.EnterActions>
+                                    </Trigger>
+
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Choice rows: the Wi-Fi table. Same idea as ChoiceCardListBox — a real ListBox
+        selection, so arrow keys and Home/End work and SelectedItem is the one source of
+        truth about what is picked — but laid out as full-width rows rather than a wrapping
+        grid of tiles.
+
+        Two things the card style does are deliberately absent. There is no press squash: a
+        0.955 scale is barely visible on a 190px tile and reads as a glitch on a row eight
+        times that wide, where the two ends travel far enough to be seen slipping. And there
+        is no hover lift, because the selected row grows downward to host the connection
+        steps and a neighbouring row rising by 3px into that reflow reads as the list
+        shifting under the pointer.
+
+        What is left is the part that carries meaning: the edge on hover, the lit border,
+        ring and glow on selection, and the one-shot pulse that says the click landed.
+    -->
+    <Style x:Key="ChoiceRowFocusVisual">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border BorderBrush="{StaticResource AccentBlue}"
+                            BorderThickness="1"
+                            CornerRadius="10"
+                            Opacity="0.55"
+                            SnapsToDevicePixels="True" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ChoiceRowListBox" TargetType="ListBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="ItemContainerStyle">
+            <Setter.Value>
+                <Style TargetType="ListBoxItem">
+                    <!-- 6px vertical gutter, 8px horizontal: the horizontal pair has to match
+                         the card grid's so the glow has the same room to bleed into, and the
+                         page inset that wraps this list is reduced by the same 8. -->
+                    <Setter Property="Margin" Value="8,0,8,6" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="FocusVisualStyle" Value="{StaticResource ChoiceRowFocusVisual}" />
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                    <Setter Property="SnapsToDevicePixels" Value="True" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListBoxItem">
+                                <Grid>
+                                    <Border x:Name="Root"
+                                            Background="{StaticResource CardBackground}"
+                                            BorderBrush="Transparent"
+                                            BorderThickness="1"
+                                            CornerRadius="10" />
+                                    <Border x:Name="Ring"
+                                            Margin="1"
+                                            BorderBrush="{StaticResource AccentBlue}"
+                                            BorderThickness="1"
+                                            CornerRadius="9"
+                                            Opacity="0" />
+                                    <Border x:Name="Pulse"
+                                            BorderBrush="{StaticResource AccentBlue}"
+                                            BorderThickness="1"
+                                            CornerRadius="10"
+                                            Opacity="0"
+                                            IsHitTestVisible="False"
+                                            RenderTransformOrigin="0.5,0.5">
+                                        <Border.RenderTransform>
+                                            <ScaleTransform ScaleX="1" ScaleY="1" />
+                                        </Border.RenderTransform>
+                                    </Border>
+                                    <ContentPresenter />
+                                </Grid>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource Divider}" />
+                                    </Trigger>
+
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource AccentBlue}" />
+                                        <Setter TargetName="Root" Property="Background" Value="#16233C" />
+                                        <Setter TargetName="Ring" Property="Opacity" Value="0.45" />
+                                        <Setter TargetName="Root" Property="Effect">
+                                            <Setter.Value>
+                                                <DropShadowEffect Color="#2979FF"
+                                                                  BlurRadius="14"
+                                                                  ShadowDepth="0"
+                                                                  Opacity="0.55" />
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Trigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetName="Pulse"
+                                                        Storyboard.TargetProperty="Opacity"
+                                                        From="0.8" To="0" Duration="0:0:0.5" />
+                                                    <!-- 1.012 across against 1.09 down: the pulse
+                                                         has to grow by roughly the same number of
+                                                         pixels on both axes to stay a ring rather
+                                                         than a widening slot, and on a row that is
+                                                         far wider than it is tall the same ratio
+                                                         would not do that. -->
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetName="Pulse"
+                                                        Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                        From="1" To="1.012" Duration="0:0:0.5">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <CubicEase EasingMode="EaseOut" />
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetName="Pulse"
+                                                        Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                        From="1" To="1.09" Duration="0:0:0.5">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <CubicEase EasingMode="EaseOut" />
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </Trigger.EnterActions>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Flat rows: the same contract as ChoiceRowListBox — a real ListBox selection, arrow
+        keys, SelectedItem as the single source of truth — with the container reduced to a
+        hairline.
+
+        Why a second style rather than a quieter first one. ChoiceRowListBox draws a filled
+        card per row with a radius, a lit border, a ring, a glow and a one-shot pulse. Those
+        five things are what make a *tile* read as pressable, and on Discovery, where the
+        rows are the only content, they earn their keep. On a Wi-Fi list they compete: the
+        eye is asked to parse fourteen bordered, glowing objects when it only wants to find
+        one name. Stripping them from the shared style would have taken Discovery with it,
+        so the two live side by side and each screen picks.
+
+        What is left carrying meaning: a bottom hairline that turns the list into a table, a
+        barely-there fill on hover, and on selection a lit 1px outline with a soft fill. No
+        radius, no glow, no shadow.
+
+        The outline replaced a 2px edge down the left, which was the right marker back when
+        the row grew downward to host the password field: a bar can run the height of an
+        expansion, a box drawn around one only advertises how much taller the row got. The
+        password moved to a side panel, rows are a fixed 46 again, and at that size an outline
+        is the clearer statement — it says *this* one, where a left bar says *from here down*.
+
+        There is no glow gutter, so the list is not inset the way the card one is. The screen
+        that hosts it pulls the ScrollViewer *wider* than the page margin instead, and each
+        row insets its own content back in — that is what puts the dividers and the outline
+        outside the text rather than under it.
+    -->
+    <Style x:Key="FlatRowFocusVisual">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <!-- Same shape as selection, at half strength. Keyboard focus and
+                         selection are the same thing on this list nine times out of ten, so
+                         a differently-shaped marker would only raise the question of how
+                         they differ. -->
+                    <Border BorderBrush="{StaticResource AccentBlue}"
+                            BorderThickness="1"
+                            Opacity="0.45"
+                            SnapsToDevicePixels="True" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="FlatRowListBox" TargetType="ListBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="ItemContainerStyle">
+            <Setter.Value>
+                <Style TargetType="ListBoxItem">
+                    <!-- No gutter at all. The hairline is the separation, and a margin
+                         between rows would leave the dividers floating in space instead of
+                         reading as one continuous table. -->
+                    <Setter Property="Margin" Value="0" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="FocusVisualStyle" Value="{StaticResource FlatRowFocusVisual}" />
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                    <Setter Property="SnapsToDevicePixels" Value="True" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListBoxItem">
+                                <Grid>
+                                    <!-- Transparent, not the card fill: unselected rows show
+                                         the page through, which is what stops fourteen of
+                                         them from reading as fourteen objects. -->
+                                    <Border x:Name="Root"
+                                            Background="Transparent"
+                                            BorderBrush="{StaticResource Divider}"
+                                            BorderThickness="0,0,0,1" />
+
+                                    <!-- The selection outline, drawn over Root rather than
+                                         by it, so turning it on does not have to turn the
+                                         divider off — two borders on one element cannot have
+                                         different brushes on different sides. -->
+                                    <Border x:Name="Outline"
+                                            BorderBrush="{StaticResource AccentBlue}"
+                                            BorderThickness="1"
+                                            Opacity="0"
+                                            SnapsToDevicePixels="True" />
+
+                                    <ContentPresenter />
+                                </Grid>
+                                <ControlTemplate.Triggers>
+                                    <!-- 4% white. Enough to track the pointer down a list,
+                                         not enough to be mistaken for selection. -->
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Root" Property="Background" Value="#0AFFFFFF" />
+                                    </Trigger>
+
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter TargetName="Root" Property="Background" Value="#14233C" />
+                                        <Setter TargetName="Outline" Property="Opacity" Value="1" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══════════════════════ Busy indicator ════════════════════════════ -->
+
+    <!--
+        WPF has no ActivityIndicator. An indeterminate ProgressBar re-templated to a
+        thin sliding bar covers the same intent without pulling in a third-party
+        spinner control.
+    -->
+    <Style x:Key="BusyBar" TargetType="ProgressBar">
+        <Setter Property="IsIndeterminate" Value="True" />
+        <Setter Property="Height" Value="3" />
+        <Setter Property="Background" Value="{StaticResource Divider}" />
+        <Setter Property="Foreground" Value="{StaticResource AccentBlue}" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
+</ResourceDictionary>

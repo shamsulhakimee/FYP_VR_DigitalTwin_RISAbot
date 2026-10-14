@@ -1,0 +1,808 @@
+<UserControl
+    x:Class="RisaBotApp.Views.DashboardView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:RisaBotApp.Controls"
+    Background="{StaticResource PageBackground}">
+
+    <!--
+        Three columns and a full-width strip, matching the web dashboard at :8080 card for
+        card. The two 260px side columns are fixed and scroll independently; the middle
+        column holds the two things that want every pixel they can get — the camera and the
+        LiDAR plot — and is the only one that stretches. Those two are exclusive tabs rather
+        than a stack: side by side neither had room, and one picture at a time is also how
+        they are read.
+
+        The sidebar is now an overlay drawer, so this view gets the full window width.
+        MainWindow's MinWidth (1060) covers 260 + 14 + 380 + 14 + 260 = 928 of body plus
+        28 × 2 = 56 of margins with a little headroom. The web page reflows the side columns
+        underneath one another on a narrow viewport; this does not — nothing is ever hidden
+        or horizontally scrolled.
+    -->
+
+    <UserControl.Resources>
+        <!-- Side-column card. Narrower padding than TelemetryCard because 260px minus
+             32px of padding leaves very little for a label and a number on one line. -->
+        <Style x:Key="SideCard" TargetType="Border" BasedOn="{StaticResource Card}">
+            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="BorderBrush" Value="{StaticResource Divider}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <!-- The label/value line these cards are almost entirely made of. -->
+        <Style x:Key="RowLabel" TargetType="TextBlock" BasedOn="{StaticResource MutedText}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <Style x:Key="RowValue" TargetType="TextBlock" BasedOn="{StaticResource TelemetryValue}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+
+        <!-- Heading above a meter: caption on the left, live number on the right. -->
+        <Style x:Key="MeterCaption" TargetType="TextBlock" BasedOn="{StaticResource MutedText}">
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+
+        <Style x:Key="MeterValue" TargetType="TextBlock" BasedOn="{StaticResource TelemetryValue}">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+
+        <Style x:Key="Meter" TargetType="controls:MeterBar">
+            <Setter Property="Height" Value="6" />
+            <Setter Property="Margin" Value="0,4,0,12" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="28,24,28,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />   <!-- header          -->
+            <RowDefinition Height="*" />      <!-- three columns   -->
+            <RowDefinition Height="Auto" />   <!-- full-width flow -->
+        </Grid.RowDefinitions>
+
+        <!-- ══ Header ════════════════════════════════════════════════════════ -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Dashboard" Style="{StaticResource PageTitle}" />
+                <TextBlock
+                    Text="{Binding LaunchStatusDetail}"
+                    Style="{StaticResource MutedText}"
+                    Margin="0,6,0,0" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <!-- Both brushes come from the state name, so the pill is the same colour
+                     here as in the browser and in the State Machine card below. -->
+                <Border
+                    Style="{StaticResource StatePill}"
+                    Background="{Binding StateName, Converter={StaticResource StateBadgeBackground}}">
+                    <TextBlock
+                        Text="{Binding StateName}"
+                        Style="{StaticResource StatePillText}"
+                        Foreground="{Binding StateName, Converter={StaticResource StateBadgeForeground}}" />
+                </Border>
+
+                <Border
+                    Style="{StaticResource ModeBadge}"
+                    Margin="8,0,0,0"
+                    Background="{Binding AutoMode, Converter={StaticResource BoolToBrush}, ConverterParameter='#00C853,#EED5DC'}">
+                    <!-- The word is a trigger rather than a converter, so Style is set here
+                         as a property element only — setting it as an attribute as well is
+                         a XAML compile error, not a last-one-wins. -->
+                    <TextBlock Foreground="#1C0810">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource ModeBadgeText}">
+                                <Setter Property="Text" Value="MANUAL" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding AutoMode}" Value="True">
+                                        <Setter Property="Text" Value="AUTO" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
+
+                <!-- E-stop. Hidden rather than greyed when clear: a permanently visible
+                     stop badge is one an operator learns to stop seeing. -->
+                <Border
+                    Style="{StaticResource ModeBadge}"
+                    Margin="8,0,0,0"
+                    Background="{StaticResource ErrorText}"
+                    Visibility="{Binding CmdSafetyEstop, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="E-STOP" Style="{StaticResource ModeBadgeText}" />
+                </Border>
+            </StackPanel>
+        </Grid>
+
+        <!-- ══ Body ══════════════════════════════════════════════════════════ -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="260" />
+                <ColumnDefinition Width="*" MinWidth="380" />
+                <ColumnDefinition Width="260" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ── Left column ──────────────────────────────────────────────── -->
+            <ScrollViewer
+                Grid.Column="0"
+                Style="{StaticResource DarkScrollViewer}"
+                Margin="0,0,14,0">
+                <StackPanel>
+
+                    <!-- State machine -->
+                    <Border Style="{StaticResource SideCard}">
+                        <StackPanel>
+                            <TextBlock Text="STATE MACHINE" Style="{StaticResource CardHeading}" Margin="0,0,0,10" />
+
+                            <Border
+                                Style="{StaticResource StatePill}"
+                                HorizontalAlignment="Stretch"
+                                Background="{Binding StateName, Converter={StaticResource StateBadgeBackground}}">
+                                <TextBlock
+                                    Text="{Binding StateName}"
+                                    Style="{StaticResource StatePillText}"
+                                    HorizontalAlignment="Center"
+                                    Foreground="{Binding StateName, Converter={StaticResource StateBadgeForeground}}" />
+                            </Border>
+
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Lap" Style="{StaticResource RowLabel}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Lap, StringFormat={}{0} / 3}" Style="{StaticResource RowValue}" />
+                            </Grid>
+
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="In state" Style="{StaticResource RowLabel}" />
+                                <TextBlock Grid.Column="1" Text="{Binding StateTime, StringFormat={}{0} s}" Style="{StaticResource RowValue}" />
+                            </Grid>
+
+                            <!-- Already a string on the wire, formatted to two decimals by
+                                 the robot, so it is concatenated rather than formatted. -->
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Distance in state" Style="{StaticResource RowLabel}" />
+                                <TextBlock Grid.Column="1" Text="{Binding StateDist, StringFormat={}{0} m}" Style="{StaticResource RowValue}" />
+                            </Grid>
+
+                            <!-- Empty when the robot did not stop, which is the usual case. -->
+                            <Border
+                                Margin="0,10,0,0"
+                                Padding="10,8"
+                                CornerRadius="8"
+                                Background="{StaticResource ErrorBackground}"
+                                Visibility="{Binding StopReason, Converter={StaticResource StringNotEmptyToVisibility}}">
+                                <StackPanel>
+                                    <TextBlock Text="STOPPED" Style="{StaticResource CardHeading}" Foreground="{StaticResource ErrorText}" />
+                                    <TextBlock
+                                        Text="{Binding StopReason}"
+                                        Style="{StaticResource BodyText}"
+                                        FontSize="11"
+                                        TextWrapping="Wrap"
+                                        Margin="0,4,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Traffic light -->
+                    <Border Style="{StaticResource SideCard}">
+                        <StackPanel>
+                            <TextBlock Text="TRAFFIC LIGHT" Style="{StaticResource CardHeading}" Margin="0,0,0,10" />
+                            <controls:TrafficLightView Lamp="{Binding TrafficLight}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- IMU. Signed meters: the sign is the whole point on an attitude
+                         reading, and ±90° covers everything short of the robot inverted. -->
+                    <Border Style="{StaticResource SideCard}">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="IMU" Style="{StaticResource CardHeading}" />
+                                <Button
+                                    Grid.Column="1"
+                                    Content="ZERO"
+                                    Style="{StaticResource GhostButton}"
+                                    FontSize="10"
+                                    Padding="10,3"
+                                    MinHeight="0"
+                                    Command="{Binding CalibrateImuCommand}"
+                                    IsEnabled="{Binding IsActionBusy, Converter={StaticResource InvertBool}}" />
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="ROLL" Style="{StaticResource MeterCaption}" />
+                                <TextBlock Grid.Column="1" Text="{Binding ImuRoll, StringFormat={}{0:F1}°}" Style="{StaticResource MeterValue}" />
+                            </Grid>
+                            <controls:MeterBar
+                                Style="{StaticResource Meter}"
+                                Value="{Binding ImuRoll}"
+                                Maximum="90"
+                                IsSigned="True"
+                                Fill="{StaticResource AccentTeal}" />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="PITCH" Style="{StaticResource MeterCaption}" />
+                                <TextBlock Grid.Column="1" Text="{Binding ImuPitch, StringFormat={}{0:F1}°}" Style="{StaticResource MeterValue}" />
+                            </Grid>
+                            <controls:MeterBar
+                                Style="{StaticResource Meter}"
+                                Value="{Binding ImuPitch}"
+                                Maximum="90"
+                                IsSigned="True"
+                                Fill="{StaticResource AccentBlue}" />
+
+                            <!-- Yaw is a heading, so it wraps at ±180 rather than ±90. -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="YAW" Style="{StaticResource MeterCaption}" />
+                                <TextBlock Grid.Column="1" Text="{Binding ImuYaw, StringFormat={}{0:F1}°}" Style="{StaticResource MeterValue}" />
+                            </Grid>
+                            <controls:MeterBar
+                                Style="{StaticResource Meter}"
+                                Margin="0,4,0,0"
+                                Value="{Binding ImuYaw}"
+                                Maximum="180"
+                                IsSigned="True"
+                                Fill="{StaticResource AccentOrange}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Manual control -->
+                    <Border Style="{StaticResource SideCard}">
+                        <StackPanel>
+                            <TextBlock Text="MANUAL CONTROL" Style="{StaticResource CardHeading}" Margin="0,0,0,10" />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="SPEED CAP" Style="{StaticResource MeterCaption}" />
+                                <TextBlock Grid.Column="1" Text="{Binding SpeedPct, StringFormat={}{0} %}" Style="{StaticResource MeterValue}" />
+                            </Grid>
+                            <controls:MeterBar
+                                Style="{StaticResource Meter}"
+                                Value="{Binding SpeedPct}"
+                                Maximum="100"
+                                Fill="{StaticResource AccentGreen}" />
+
+                            <!-- The pad's own mode, which is not the state machine's: the
+                                 controller can be cycling modes while auto_driver ignores it. -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Pad mode" Style="{StaticResource RowLabel}" />
+                                <TextBlock Grid.Column="1" Text="{Binding CtrlStateName}" Style="{StaticResource RowValue}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Lane following. Lane error also has a strip under the camera; this
+                         card carries the two commanded velocities beside it, which is where
+                         you look when the error is small but the robot is still turning. -->
+                    <Border Style="{StaticResource SideCard}">
+                        <StackPanel>
+                            <TextBlock Text="LANE FOLLOWING" Style="{StaticResource CardHeading}" Margin="0,0,0,10" />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="LANE ERROR" Style="{StaticResource MeterCaption}" />
+                                <TextBlock Grid.Column="1" Text="{Binding LaneError, StringFormat={}{0:F3}}" Style="{StaticResource MeterValue}" />
+                            </Grid>
+                            <controls:MeterBar
+                                Style="{StaticResource Meter}"
+                                Value="{Binding LaneError}"
+                                Maximum="1"
+                                IsSigned="True"
+                                Fill="{StaticResource AccentTeal}" />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="CMD LINEAR" Style="{StaticResource MeterCaption}" />
+                                <TextBlock Grid.Column="1" Text="{Binding CmdLinX, StringFormat={}{0:F2} m/s}" Style="{StaticResource MeterValue}" />
+                            </Grid>
+                            <controls:MeterBar
+                                Style="{StaticResource Meter}"
+                                Value="{Binding CmdLinX}"
+                                Maximum="0.5"
+                                Fill="{StaticResource AccentGreen}" />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="CMD ANGULAR" Style="{StaticResource MeterCaption}" />
+                                <TextBlock Grid.Column="1" Text="{Binding CmdAngZ, StringFormat={}{0:F2} rad/s}" Style="{StaticResource MeterValue}" />
+                            </Grid>
+                            <controls:MeterBar
+                                Style="{StaticResource Meter}"
+                                Margin="0,4,0,0"
+                                Value="{Binding CmdAngZ}"
+                                Maximum="1.5"
+                                IsSigned="True"
+                                Fill="{StaticResource AccentOrange}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!--
+                ── Middle column ──────────────────────────────────────────────
+
+                One picture at a time, chosen by the tab row. The camera feed and the scan
+                plot used to be stacked, and between them they owned the whole height of the
+                window: the plot had to come down from the web canvas's 320px to fit, the
+                feed could not go under 240, and the two of them together are what set the
+                window's height floor. Exclusive, each one gets the full column and the
+                window can be shorter than either arrangement allowed.
+
+                Being exclusive is honest as well as roomier — they answer the same question
+                from two sensors, and an operator watching for an obstacle is reading one of
+                them, not both.
+            -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />   <!-- view switcher    -->
+                    <RowDefinition Height="*" />      <!-- camera or LiDAR  -->
+                </Grid.RowDefinitions>
+
+                <!--
+                    View switcher. IsChecked is OneWay on purpose: the source is a string,
+                    and EnumToBoolConverter.ConvertBack would try Enum.TryParse against
+                    System.String. The command is what actually changes the view; the
+                    binding only reflects the result back.
+
+                    All six check against ActiveDisplayView rather than five against
+                    ActiveCamView and one against a bool. The five camera names come from
+                    the robot and "lidar" is local, but the row is one choice, so it reads
+                    one property — otherwise selecting LiDAR leaves the last camera tab
+                    still bound to a true value and only RadioButton's group behaviour
+                    keeps the two sources looking consistent.
+                -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+                    <RadioButton
+                        Style="{StaticResource ViewSwitchButton}"
+                        GroupName="CamView"
+                        Content="Raw"
+                        IsChecked="{Binding ActiveDisplayView, Mode=OneWay, Converter={StaticResource EnumToBool}, ConverterParameter=raw}"
+                        Command="{Binding SelectCamViewCommand}"
+                        CommandParameter="raw" />
+                    <RadioButton
+                        Style="{StaticResource ViewSwitchButton}"
+                        GroupName="CamView"
+                        Content="Lane"
+                        IsChecked="{Binding ActiveDisplayView, Mode=OneWay, Converter={StaticResource EnumToBool}, ConverterParameter=line_follower}"
+                        Command="{Binding SelectCamViewCommand}"
+                        CommandParameter="line_follower" />
+                    <RadioButton
+                        Style="{StaticResource ViewSwitchButton}"
+                        GroupName="CamView"
+                        Content="Obstacle"
+                        IsChecked="{Binding ActiveDisplayView, Mode=OneWay, Converter={StaticResource EnumToBool}, ConverterParameter=obstacle}"
+                        Command="{Binding SelectCamViewCommand}"
+                        CommandParameter="obstacle" />
+                    <RadioButton
+                        Style="{StaticResource ViewSwitchButton}"
+                        GroupName="CamView"
+                        Content="Signage"
+                        IsChecked="{Binding ActiveDisplayView, Mode=OneWay, Converter={StaticResource EnumToBool}, ConverterParameter=signage}"
+                        Command="{Binding SelectCamViewCommand}"
+                        CommandParameter="signage" />
+                    <RadioButton
+                        Style="{StaticResource ViewSwitchButton}"
+                        GroupName="CamView"
+                        Content="Traffic light"
+                        IsChecked="{Binding ActiveDisplayView, Mode=OneWay, Converter={StaticResource EnumToBool}, ConverterParameter=traffic_light}"
+                        Command="{Binding SelectCamViewCommand}"
+                        CommandParameter="traffic_light" />
+
+                    <!-- A rule rather than a gap. The five to its left all switch what the
+                         robot draws on one picture; this one switches which picture. Same
+                         row because it is the same choice, separated because it is not the
+                         same kind of thing. -->
+                    <Border
+                        Width="1"
+                        Margin="2,7,10,7"
+                        Background="{StaticResource Divider}" />
+
+                    <RadioButton
+                        Style="{StaticResource ViewSwitchButton}"
+                        GroupName="CamView"
+                        Content="LiDAR"
+                        IsChecked="{Binding ActiveDisplayView, Mode=OneWay, Converter={StaticResource EnumToBool}, ConverterParameter=lidar}"
+                        Command="{Binding ShowLidarViewCommand}" />
+                </StackPanel>
+
+                <!-- ── Camera ───────────────────────────────────────────────────
+                     The lane-error strip travels with the feed rather than staying put:
+                     it is the one number you read against what the camera is showing, and
+                     under the scan plot it would be annotating the wrong picture. -->
+                <Grid
+                    Grid.Row="1"
+                    Visibility="{Binding IsCameraView, Converter={StaticResource BoolToVisibility}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Border
+                        Grid.Row="0"
+                        CornerRadius="14"
+                        ClipToBounds="True"
+                        MinHeight="240"
+                        BorderBrush="{StaticResource Divider}"
+                        BorderThickness="1">
+                        <!-- IsCameraStreaming, not IsCameraLive: collapsing this control
+                             does not end the multipart response on its own, so binding the
+                             robot-side question here would keep 30 fps arriving and being
+                             decoded into a hidden element while the LiDAR tab is up. -->
+                        <controls:MjpegView
+                            StreamUrl="{Binding CameraStreamUrl}"
+                            IsActive="{Binding IsCameraStreaming}"
+                            InactiveMessage="Start the system to bring the feed up." />
+                    </Border>
+
+                    <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,10,0,0" Padding="16,12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock
+                                Grid.Column="0"
+                                Text="LANE ERROR"
+                                Style="{StaticResource CardHeading}" />
+
+                            <!-- A centre-anchored bar. The Multiply converter turns the raw
+                                 error into pixels; 60 keeps a full-scale error inside the
+                                 strip. -->
+                            <Grid Grid.Column="1" Height="8" Margin="18,0" VerticalAlignment="Center">
+                                <Border Background="{StaticResource PageBackground}" CornerRadius="4" />
+                                <Border Width="1" Background="{StaticResource Divider}" HorizontalAlignment="Center" />
+                                <Border
+                                    Height="8"
+                                    CornerRadius="4"
+                                    HorizontalAlignment="Center"
+                                    Background="{StaticResource AccentTeal}"
+                                    Width="4"
+                                    RenderTransformOrigin="0.5,0.5">
+                                    <Border.RenderTransform>
+                                        <!--
+                                            Animate.X, not X. This marker is the most-watched
+                                            thing on the dashboard while the robot is actually
+                                            driving, and binding X directly made it hop between
+                                            positions twice a second. Binding the attached
+                                            target instead leaves the real X free for an
+                                            animation to drive — Controls/Animate.cs explains
+                                            why the two cannot be the same property.
+                                        -->
+                                        <TranslateTransform
+                                            controls:Animate.X="{Binding LaneError, Converter={StaticResource SignedMultiply}, ConverterParameter=60}" />
+                                    </Border.RenderTransform>
+                                </Border>
+                            </Grid>
+
+                            <TextBlock
+                                Grid.Column="2"
+                                Text="{Binding LaneError, StringFormat={}{0:F3}}"
+                                Style="{StaticResource TelemetryValueLarge}"
+                                FontSize="18"
+                                VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- ── LiDAR ────────────────────────────────────────────────────
+                     Same cell as the camera, one of the two visible at a time.
+
+                     The plot now stretches instead of being pinned to a height. It was
+                     280 — under the web canvas's 320 — because it was sharing the column
+                     with the feed and the pair of them set the window's height floor.
+                     Alone in the cell it can take whatever the window gives it, which on
+                     any ordinary screen is more than 320. It stays square regardless:
+                     LidarView letterboxes a non-square box rather than distorting, because
+                     an oval range ring would misreport distance along one axis.
+
+                     MinHeight rather than Height so the card still has a floor — the range
+                     labels and the tunnel overlay stop being legible somewhere under this.
+
+                     The status readout reaches back into the control by ElementName: it is
+                     derived from the scan the control already holds (point count, staleness),
+                     not a separate telemetry field, so duplicating it on the view-model
+                     would mean two places deciding what "No data" means. -->
+                <Border
+                    Grid.Row="1"
+                    Style="{StaticResource TelemetryCard}"
+                    Visibility="{Binding IsLidarView, Converter={StaticResource BoolToVisibility}}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="LIDAR TOP VIEW" Style="{StaticResource CardHeading}" />
+                            <TextBlock
+                                Grid.Column="1"
+                                Text="{Binding StatusText, ElementName=Lidar}"
+                                Foreground="{Binding StatusBrush, ElementName=Lidar}"
+                                Style="{StaticResource TelemetryValue}"
+                                FontSize="11" />
+                        </Grid>
+
+                        <controls:LidarView
+                            Grid.Row="1"
+                            x:Name="Lidar"
+                            MinHeight="260"
+                            Scan="{Binding LidarScan}" />
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- ── Right column ─────────────────────────────────────────────── -->
+            <ScrollViewer
+                Grid.Column="2"
+                Style="{StaticResource DarkScrollViewer}"
+                Margin="14,0,0,0">
+                <StackPanel>
+
+                    <!--
+                        Sensors. TrueIsGood is set explicitly on the two rows that report
+                        health rather than hazard; everywhere else true is the bad news and
+                        the default holds. Getting this wrong is how a red dot ends up
+                        meaning "fine" on one line and "stop" on the next.
+                    -->
+                    <Border Style="{StaticResource SideCard}">
+                        <StackPanel>
+                            <TextBlock Text="SENSORS" Style="{StaticResource CardHeading}" Margin="0,0,0,8" />
+
+                            <controls:SensorDotRow Label="LiDAR obstacle"  Status="{Binding LidarObstacle}"       TrueText="BLOCKED"  FalseText="CLEAR" />
+                            <controls:SensorDotRow Label="Camera obstacle" Status="{Binding CameraObstacle}"      TrueText="BLOCKED"  FalseText="CLEAR" />
+                            <controls:SensorDotRow Label="Fused obstacle"  Status="{Binding FusedObstacle}"       TrueText="BLOCKED"  FalseText="CLEAR" />
+                            <controls:SensorDotRow Label="Boom gate"       Status="{Binding BoomGate}"            TrueText="OPEN"     FalseText="CLOSED" TrueIsGood="True" />
+                            <controls:SensorDotRow Label="Tunnel"          Status="{Binding TunnelDetected}"      TrueText="DETECTED" FalseText="CLEAR" />
+                            <controls:SensorDotRow Label="Obstruction"     Status="{Binding ObstructionActive}"   TrueText="ACTIVE"   FalseText="IDLE" />
+                            <controls:SensorDotRow Label="Parking sign"    Status="{Binding ParkingSignDetected}" TrueText="DETECTED" FalseText="NONE" />
+                            <controls:SensorDotRow Label="Parking done"    Status="{Binding ParkingComplete}"     TrueText="DONE"     FalseText="PENDING" TrueIsGood="True" />
+                            <controls:SensorDotRow Label="Node health"     Status="{Binding HealthOk}"            TrueText="OK"       FalseText="FAULT"   TrueIsGood="True" />
+
+                            <!-- Stale streams are names, not a boolean, so this is a text
+                                 row. An em dash is the healthy case. -->
+                            <Grid Margin="0,5">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Stale streams" Style="{StaticResource RowLabel}" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Text="{Binding HealthStaleSummary}"
+                                    Style="{StaticResource RowValue}"
+                                    MaxWidth="120"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="{Binding HealthStaleSummary}" />
+                            </Grid>
+
+                            <!-- A running total, not a rate: what matters is that it moves. -->
+                            <Grid Margin="0,5">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Cmd timeouts" Style="{StaticResource RowLabel}" />
+                                <TextBlock Grid.Column="1" Text="{Binding CmdSafetyTimeoutCount}" Style="{StaticResource RowValue}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Odometry -->
+                    <Border Style="{StaticResource SideCard}">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="ODOMETRY" Style="{StaticResource CardHeading}" />
+                                <Button
+                                    Grid.Column="1"
+                                    Content="RESET"
+                                    Style="{StaticResource GhostButton}"
+                                    FontSize="10"
+                                    Padding="10,3"
+                                    MinHeight="0"
+                                    Command="{Binding ResetOdometryCommand}"
+                                    IsEnabled="{Binding IsActionBusy, Converter={StaticResource InvertBool}}" />
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="X" Style="{StaticResource MeterCaption}" />
+                                    <TextBlock Text="{Binding OdomX, StringFormat={}{0:F2}}" Style="{StaticResource TelemetryValue}" Foreground="{StaticResource TextPrimary}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Y" Style="{StaticResource MeterCaption}" />
+                                    <TextBlock Text="{Binding OdomY, StringFormat={}{0:F2}}" Style="{StaticResource TelemetryValue}" Foreground="{StaticResource TextPrimary}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="YAW" Style="{StaticResource MeterCaption}" />
+                                    <TextBlock Text="{Binding OdomYaw, StringFormat={}{0:F2}}" Style="{StaticResource TelemetryValue}" Foreground="{StaticResource TextPrimary}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Border Height="1" Background="{StaticResource Divider}" Margin="0,12" />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="SPEED" Style="{StaticResource MeterCaption}" />
+                                    <TextBlock Text="{Binding Speed, StringFormat={}{0:F2} m/s}" Style="{StaticResource TelemetryValue}" Foreground="{StaticResource TextPrimary}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="DISTANCE" Style="{StaticResource MeterCaption}" />
+                                    <TextBlock Text="{Binding Distance, StringFormat={}{0:F1} m}" Style="{StaticResource TelemetryValue}" Foreground="{StaticResource TextPrimary}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Controller -->
+                    <Border Style="{StaticResource SideCard}">
+                        <StackPanel>
+                            <TextBlock Text="CONTROLLER" Style="{StaticResource CardHeading}" Margin="0,0,0,10" />
+                            <controls:GamepadView
+                                Buttons="{Binding Buttons}"
+                                Axes="{Binding Axes}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Link. No equivalent in the web dashboard, and it stays: reaching
+                         the page at all proves the robot is up, which the app cannot
+                         assume. -->
+                    <Border Style="{StaticResource SideCard}">
+                        <StackPanel>
+                            <TextBlock Text="LINK" Style="{StaticResource CardHeading}" Margin="0,0,0,8" />
+
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="ROS nodes" Style="{StaticResource RowLabel}" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Text="{Binding RosActive, Converter={StaticResource BoolToOnline}}"
+                                    Style="{StaticResource RowValue}"
+                                    Foreground="{Binding RosActive, Converter={StaticResource BoolToBrush}, ConverterParameter='#00C853,#FF5252'}" />
+                            </Grid>
+
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Wi-Fi" Style="{StaticResource RowLabel}" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Text="{Binding ConnectedSsid}"
+                                    Style="{StaticResource RowValue}"
+                                    MaxWidth="130"
+                                    TextTrimming="CharacterEllipsis" />
+                            </Grid>
+
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Internet" Style="{StaticResource RowLabel}" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Text="{Binding InternetOnline, Converter={StaticResource BoolToOnline}}"
+                                    Style="{StaticResource RowValue}"
+                                    Foreground="{Binding InternetOnline, Converter={StaticResource BoolToBrush}, ConverterParameter='#00C853,#667799'}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Telemetry error, if the poll is failing -->
+                    <Border
+                        Background="{StaticResource ErrorBackground}"
+                        CornerRadius="12"
+                        Padding="14,12"
+                        Margin="0,0,0,10"
+                        Visibility="{Binding TelemetryError, Converter={StaticResource StringNotEmptyToVisibility}}">
+                        <TextBlock
+                            Text="{Binding TelemetryError}"
+                            Foreground="{StaticResource ErrorText}"
+                            FontSize="12"
+                            TextWrapping="Wrap" />
+                    </Border>
+
+                    <!-- Command failures. Separate from the telemetry banner because one is
+                         "the robot stopped answering" and the other is "the thing you just
+                         pressed did not work", and they need different reactions. -->
+                    <Border
+                        Background="{StaticResource ErrorBackground}"
+                        CornerRadius="12"
+                        Padding="14,12"
+                        Margin="0,0,0,10"
+                        Visibility="{Binding ActionError, Converter={StaticResource StringNotEmptyToVisibility}}">
+                        <TextBlock
+                            Text="{Binding ActionError}"
+                            Foreground="{StaticResource ErrorText}"
+                            FontSize="12"
+                            TextWrapping="Wrap" />
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- ══ Action priority ═══════════════════════════════════════════════ -->
+        <Border Grid.Row="2" Style="{StaticResource TelemetryCard}" Margin="0,14,0,0" Padding="16,12">
+            <StackPanel>
+                <TextBlock Text="ACTION PRIORITY" Style="{StaticResource CardHeading}" Margin="0,0,0,10" />
+                <controls:ActionPriorityBar State="{Binding StateName}" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

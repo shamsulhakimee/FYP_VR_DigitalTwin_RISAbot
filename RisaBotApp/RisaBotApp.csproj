@@ -1,77 +1,43 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<!-- Android is the primary target; iOS build requires a Mac build agent.  -->
-		<!-- iOS can be re-enabled by adding net10.0-ios to TargetFrameworks when   -->
-		<!-- building on a Mac with the ios workload installed.                     -->
-		<TargetFrameworks>net10.0-android</TargetFrameworks>
-		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
-		<!-- iOS: <TargetFrameworks>$(TargetFrameworks);net10.0-ios</TargetFrameworks> -->
+		<!-- Desktop-only WPF companion app. The MAUI multi-target build (Android +   -->
+		<!-- WinUI) was retired in favour of a single Windows desktop target: the      -->
+		<!-- Android head had never been compiled and every operator runs Windows.     -->
+		<TargetFramework>net10.0-windows</TargetFramework>
 
-		<OutputType>Exe</OutputType>
+		<OutputType>WinExe</OutputType>
+		<UseWPF>true</UseWPF>
 		<RootNamespace>RisaBotApp</RootNamespace>
-		<UseMaui>true</UseMaui>
-		<SingleProject>true</SingleProject>
+		<AssemblyName>RisaBotApp</AssemblyName>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 
-		<MauiXamlInflator>SourceGen</MauiXamlInflator>
+		<Version>2.0.0</Version>
+		<AssemblyVersion>2.0.0.0</AssemblyVersion>
+		<FileVersion>2.0.0.0</FileVersion>
+		<Product>RISA-Studio</Product>
+		<Company>RISA</Company>
 
-		<!-- Display name shown on device home screen -->
-		<ApplicationTitle>RISA-Bot</ApplicationTitle>
-
-		<!-- App Identifier -->
-		<ApplicationId>com.risabot.companion</ApplicationId>
-
-		<!-- Versions -->
-		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
-		<ApplicationVersion>1</ApplicationVersion>
-
-		<WindowsPackageType>None</WindowsPackageType>
-
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
-		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
-
-		<!-- Windows Executable Icon (embedded into PE header of RisaBotApp.exe for Windows Explorer) -->
-		<ApplicationIcon Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">Platforms\Windows\appicon.ico</ApplicationIcon>
-
-		<!-- Suppress NETSDK1138 — expected when building single-target on Windows -->
-		<NoWarn>$(NoWarn);NETSDK1138</NoWarn>
+		<!-- App shortcut / taskbar icon -->
+		<ApplicationIcon>risa.ico</ApplicationIcon>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<!-- App Icon (RISABOT official logo) -->
-		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#91102F" />
-
-		<!-- Native MAUI splash screen (shown by OS before app renders) -->
-		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#91102F" BaseSize="128,128" />
-
-		<!-- Images — WiFi signal icons, robot illustrations -->
-		<MauiImage Include="Resources\Images\*" />
-
-		<!-- Fonts -->
-		<MauiFont Include="Resources\Fonts\*" />
-
-		<!-- Raw Assets -->
-		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+		<!-- Fonts are embedded as WPF resources and referenced by pack:// URI in     -->
+		<!-- Themes/Fonts.xaml. Build action must be Resource, not Content.           -->
+		<Resource Include="Resources\Fonts\*.ttf" />
+		<!-- App icon embedded as a WPF resource (pack:// URI usable in Window.Icon)  -->
+		<Resource Include="risa.ico" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- Pin MAUI to the installed workload version to avoid downgrade conflicts -->
-		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.20" />
-		<PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="10.0.20" />
-		<!-- Explicit Essentials pin resolves the SkiaSharp + CommunityToolkit conflict -->
-		<PackageReference Include="Microsoft.Maui.Essentials" Version="10.0.20" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
-
-		<!-- MVVM source generators — ObservableObject, RelayCommand, etc. -->
+		<!-- MVVM source generators — ObservableObject, RelayCommand, etc.            -->
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 
-		<!-- Microcharts — lightweight battery/odom/IMU charts for Telemetry tab -->
-		<PackageReference Include="Microcharts.Maui" Version="1.0.0" />
-		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.116.1" />
+		<!-- DI container. Same service registrations the MAUI host used, minus the   -->
+		<!-- MAUI-specific builder.                                                   -->
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
 	</ItemGroup>
 
 </Project>

@@ -1,0 +1,370 @@
+<UserControl
+    x:Class="RisaBotApp.Views.DataLoggerView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{StaticResource PageBackground}">
+
+    <!--
+        Port of the web dashboard's Data Logger card (dashboard_templates.py:1360-1393),
+        given its own screen rather than a slot on the dashboard.
+
+        The layout splits along the one axis that matters here: the top card is the *live*
+        session (badge, label, start/stop, counters that tick at 2 Hz off the telemetry poll),
+        and the bottom card is the *archive* (what is already on disk, and getting it onto this
+        PC). Those are used minutes apart and never at the same time, so they do not compete.
+    -->
+
+    <UserControl.Resources>
+        <Style x:Key="CounterCaption" TargetType="TextBlock" BasedOn="{StaticResource MutedText}">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+
+        <Style x:Key="CounterValue" TargetType="TextBlock" BasedOn="{StaticResource TelemetryValue}">
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontFamily" Value="{StaticResource FontMono}" />
+        </Style>
+
+        <Style x:Key="SessionMetaKey" TargetType="TextBlock" BasedOn="{StaticResource MutedText}">
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="28,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />   <!-- header         -->
+            <RowDefinition Height="Auto" />   <!-- live session   -->
+            <RowDefinition Height="Auto" />   <!-- archive header -->
+            <RowDefinition Height="*" />      <!-- sessions       -->
+        </Grid.RowDefinitions>
+
+        <!-- ══════════════════ Header ═══════════════════════════════════════ -->
+        <Grid Grid.Row="0">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Data Logger" Style="{StaticResource PageTitle}" />
+                <TextBlock
+                    Text="Records every subsystem to CSV at 10 Hz on the robot, for tuning after the run."
+                    Style="{StaticResource MutedText}"
+                    Margin="0,6,0,0" />
+            </StackPanel>
+
+            <!--
+                Status badge. Three states, not two: OFFLINE means /data is not answering, so
+                whether a session is open is unknown — which reads very differently from IDLE
+                when a run is supposed to be recording.
+            -->
+            <Border
+                HorizontalAlignment="Right"
+                VerticalAlignment="Center"
+                CornerRadius="12"
+                Padding="12,6"
+                Background="{StaticResource CardBackground}"
+                BorderThickness="1"
+                BorderBrush="{Binding BadgeColor, Converter={StaticResource StringToBrush}}">
+                <StackPanel Orientation="Horizontal">
+                    <!--
+                        The pulse. Visibility is a Setter and Opacity is only ever touched by
+                        the storyboard, so the two never contend — an animation with
+                        FillBehavior.HoldEnd outranks Setters, and a Setter for the same
+                        property in another trigger state would then silently do nothing.
+                        StopStoryboard in ExitActions is mandatory: RepeatBehavior="Forever"
+                        would otherwise keep running against a collapsed element forever.
+                    -->
+                    <Ellipse Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,8,0"
+                             Fill="{Binding BadgeColor, Converter={StaticResource StringToBrush}}">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLogging}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard x:Name="RecordingPulse">
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetProperty="Opacity"
+                                                        From="1.0" To="0.15"
+                                                        Duration="0:0:0.7"
+                                                        AutoReverse="True">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <SineEase EasingMode="EaseInOut" />
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <StopStoryboard BeginStoryboardName="RecordingPulse" />
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+
+                    <TextBlock
+                        Text="{Binding BadgeText}"
+                        Foreground="{Binding BadgeColor, Converter={StaticResource StringToBrush}}"
+                        FontFamily="{StaticResource FontSemiBold}"
+                        FontSize="11"
+                        VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ══════════════════ Live session ═════════════════════════════════ -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" Padding="20,18" Margin="0,18,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />      <!-- label + buttons -->
+                    <ColumnDefinition Width="Auto" />   <!-- counters        -->
+                </Grid.ColumnDefinitions>
+
+                <!-- ── Label and the two actions ────────────────────────── -->
+                <StackPanel Grid.Column="0" Margin="0,0,24,0">
+                    <TextBlock Text="SESSION LABEL" Style="{StaticResource CounterCaption}" />
+
+                    <!--
+                        A prefix, not a name: the robot appends its own timestamp, so two runs
+                        with the same label never collide. Empty is fine and gives a
+                        timestamp-only directory.
+                    -->
+                    <TextBox
+                        Style="{StaticResource DarkTextBox}"
+                        Text="{Binding Label, UpdateSourceTrigger=PropertyChanged}"
+                        IsEnabled="{Binding IsLogging, Converter={StaticResource InvertBool}}"
+                        Height="38" />
+
+                    <TextBlock
+                        Text="Optional — e.g. pid_test_kp1.2. The robot adds the timestamp."
+                        Style="{StaticResource MutedText}"
+                        FontSize="10"
+                        Margin="0,6,0,0" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button
+                            Content="Start Recording"
+                            Style="{StaticResource PrimaryButton}"
+                            Width="150"
+                            Command="{Binding StartCommand}" />
+
+                        <Button
+                            Content="Stop &amp; Save"
+                            Style="{StaticResource DangerButton}"
+                            Width="130"
+                            Margin="10,0,0,0"
+                            Command="{Binding StopCommand}" />
+                    </StackPanel>
+
+                    <!-- Action feedback. Colour carries the outcome, so it is bound too. -->
+                    <TextBlock
+                        Text="{Binding ActionStatus}"
+                        Foreground="{Binding ActionStatusColor, Converter={StaticResource StringToBrush}}"
+                        FontSize="11"
+                        TextWrapping="Wrap"
+                        Margin="0,12,0,0"
+                        Visibility="{Binding ActionStatus, Converter={StaticResource StringNotEmptyToVisibility}}" />
+                </StackPanel>
+
+                <!-- ── Live counters ────────────────────────────────────── -->
+                <!--
+                    These are the reason this screen needs no poll of its own: logger_status
+                    rides the /data payload, so duration and samples advance every 500 ms for
+                    free. Samples should climb by ~5 per tick at the robot's 10 Hz write rate —
+                    a stalled counter with a RECORDING badge means the logger timer has died.
+                -->
+                <Border
+                    Grid.Column="1"
+                    Background="{StaticResource PageBackground}"
+                    CornerRadius="8"
+                    Padding="20,16"
+                    MinWidth="300">
+                    <StackPanel>
+                        <TextBlock Text="ACTIVE SESSION" Style="{StaticResource CounterCaption}" />
+                        <TextBlock
+                            Text="{Binding ActiveSessionName}"
+                            Style="{StaticResource BodyText}"
+                            FontFamily="{StaticResource FontMono}"
+                            FontSize="12"
+                            TextTrimming="CharacterEllipsis"
+                            Margin="0,0,0,16" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="DURATION" Style="{StaticResource CounterCaption}" />
+                                <TextBlock Text="{Binding DurationText}" Style="{StaticResource CounterValue}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="SAMPLES" Style="{StaticResource CounterCaption}" />
+                                <TextBlock Text="{Binding SampleCount}" Style="{StaticResource CounterValue}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock
+                            Text="{Binding LogDir}"
+                            Style="{StaticResource MutedText}"
+                            FontFamily="{StaticResource FontMono}"
+                            FontSize="10"
+                            TextTrimming="CharacterEllipsis"
+                            Margin="0,16,0,0"
+                            ToolTip="Where sessions are written on the robot." />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ══════════════════ Archive header ═══════════════════════════════ -->
+        <Grid Grid.Row="2" Margin="0,26,0,12">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Saved sessions" Style="{StaticResource CardTitle}" />
+                <TextBlock
+                    Style="{StaticResource MutedText}"
+                    FontSize="10"
+                    Margin="0,4,0,0"
+                    TextTrimming="CharacterEllipsis">
+                    <Run Text="Downloads go to" />
+                    <Run Text="{Binding DownloadRootDisplay, Mode=OneWay}" FontFamily="{StaticResource FontMono}" />
+                </TextBlock>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button
+                    Content="Clear downloads"
+                    Style="{StaticResource GhostButton}"
+                    Width="140"
+                    Command="{Binding ClearDownloadsCommand}"
+                    ToolTip="Deletes the copies on this PC only. Sessions on the robot are untouched." />
+
+                <Button
+                    Content="Refresh"
+                    Style="{StaticResource SecondaryButton}"
+                    Width="110"
+                    Margin="10,0,0,0"
+                    Command="{Binding RefreshSessionsCommand}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- ══════════════════ Sessions ═════════════════════════════════════ -->
+        <Border Grid.Row="3" Style="{StaticResource Card}" Padding="8">
+            <Grid>
+                <ListBox
+                    Style="{StaticResource PlainListBox}"
+                    ItemsSource="{Binding Sessions}"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border
+                                Background="{StaticResource PageBackground}"
+                                CornerRadius="6"
+                                Padding="14,10"
+                                Margin="4,3">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />      <!-- name + time -->
+                                        <ColumnDefinition Width="Auto" />   <!-- duration    -->
+                                        <ColumnDefinition Width="Auto" />   <!-- samples     -->
+                                        <ColumnDefinition Width="Auto" />   <!-- download    -->
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock
+                                            Text="{Binding Name}"
+                                            Style="{StaticResource BodyText}"
+                                            FontFamily="{StaticResource FontMono}"
+                                            FontSize="12"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <!--
+                                            Not formatted as a date: the robot falls back to the
+                                            directory name when session_meta.json is missing, so
+                                            this is not reliably parseable.
+                                        -->
+                                        <TextBlock
+                                            Text="{Binding Time}"
+                                            Style="{StaticResource SessionMetaKey}"
+                                            Margin="0,3,0,0"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0" MinWidth="76">
+                                        <TextBlock Text="DURATION" Style="{StaticResource CounterCaption}" />
+                                        <TextBlock
+                                            Style="{StaticResource SessionMetaKey}"
+                                            FontFamily="{StaticResource FontMono}"
+                                            Foreground="{StaticResource TextPrimary}"
+                                            Text="{Binding Duration, StringFormat={}{0:0.0} s}" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="0,0,16,0" MinWidth="70">
+                                        <TextBlock Text="SAMPLES" Style="{StaticResource CounterCaption}" />
+                                        <TextBlock
+                                            Style="{StaticResource SessionMetaKey}"
+                                            FontFamily="{StaticResource FontMono}"
+                                            Foreground="{StaticResource TextPrimary}"
+                                            Text="{Binding Samples}" />
+                                    </StackPanel>
+
+                                    <!--
+                                        One button per session, not per file: it fetches all five
+                                        CSVs into a folder named after the session and opens it.
+                                        The command lives on the view-model, so the binding has to
+                                        climb out of the item's DataContext to reach it.
+                                    -->
+                                    <Button
+                                        Grid.Column="3"
+                                        Content="Download CSVs"
+                                        Style="{StaticResource SecondaryButton}"
+                                        Width="140"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding DataContext.DownloadSessionCommand,
+                                                  RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                        CommandParameter="{Binding}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- Empty / error / not-loaded state. Only shown when the list really is
+                     empty, so a stale error cannot sit on top of a populated list. -->
+                <TextBlock
+                    Text="{Binding SessionsMessage}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    TextWrapping="Wrap"
+                    MaxWidth="420"
+                    TextAlignment="Center"
+                    IsHitTestVisible="False">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource MutedText}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Sessions.Count}" Value="0" />
+                                        <Condition Binding="{Binding IsLoadingSessions}" Value="False" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <TextBlock
+                    Text="Listing sessions…"
+                    Style="{StaticResource MutedText}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    IsHitTestVisible="False"
+                    Visibility="{Binding IsLoadingSessions, Converter={StaticResource BoolToVisibility}}" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

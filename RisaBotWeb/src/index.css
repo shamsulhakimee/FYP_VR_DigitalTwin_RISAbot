@@ -1,0 +1,63 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-surface: #0b0f14;
+  --color-panel: #131a22;
+  /* Lighter stop for card gradients — a flat fill reads as unfinished at this scale. */
+  --color-panel-hi: #1a2532;
+  --color-edge: #223040;
+  --color-accent: #38bdf8;
+  --color-good: #34d399;
+  --color-warn: #fbbf24;
+  --color-bad: #f87171;
+}
+
+/* A hairline of light along the top edge, the cheap trick that makes a dark
+   surface look lit rather than painted. */
+@utility raised {
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.05),
+    0 1px 2px 0 rgb(0 0 0 / 0.4);
+}
+
+@utility card {
+  border-radius: var(--radius-2xl);
+  border: 1px solid var(--color-edge);
+  background-image: linear-gradient(to bottom, var(--color-panel-hi), var(--color-panel));
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.05),
+    0 1px 2px 0 rgb(0 0 0 / 0.4);
+}
+
+/* Readouts change every 500 ms; proportional digits make them jitter. */
+@utility readout {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Horizontal strips scroll by swipe on a phone; the desktop bar is just noise. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  /* A cool glow behind the header so the screen has a light source. */
+  background:
+    radial-gradient(90rem 32rem at 50% -14rem, #1b2a3a 0%, transparent 65%),
+    var(--color-surface);
+  background-attachment: fixed;
+  color: #e6edf5;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}

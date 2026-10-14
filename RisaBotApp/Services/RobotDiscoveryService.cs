@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using RisaBotApp.Models;
@@ -140,17 +141,26 @@ public class RobotDiscoveryService
         // Run all probes in parallel
         var probeTasks = candidates.Select(async c =>
         {
-            var dev = await ProbeDeviceAsync(c.host, c.isHotspot, pairedRobot, ct);
-            if (dev is null && c.host.EndsWith(".local", StringComparison.OrdinalIgnoreCase))
+            // Resolve .local ourselves instead of handing the hostname to HttpClient.
+            // Avahi advertises AAAA records once the network hands out IPv6, but every
+            // service on the robot binds 0.0.0.0, so a v6 connect blackholes and burns
+            // the entire probe budget before v4 is ever attempted — the robot then looks
+            // offline on any IPv6-capable network. Probing the resolved address also
+            // keeps BaseUrl v4-only, which matters because the camera WebView is pointed
+            // at a URL derived from it and would otherwise hang the same way.
+            if (c.host.EndsWith(".local", StringComparison.OrdinalIgnoreCase))
             {
-                // Fallback: try resolving mDNS to IPv4 address first
                 var ip = await TryResolveMdnsToIpAsync(c.host, ct);
                 if (!string.IsNullOrWhiteSpace(ip))
                 {
-                    dev = await ProbeDeviceAsync(ip, c.isHotspot, pairedRobot, ct);
+                    var viaIp = await ProbeDeviceAsync(ip, c.isHotspot, pairedRobot, ct);
+                    if (viaIp is not null) return viaIp;
                 }
             }
-            return dev;
+
+            // Hostname probe still runs when resolution failed outright, since Windows
+            // mDNS is flaky and HttpClient sometimes resolves what Dns cannot.
+            return await ProbeDeviceAsync(c.host, c.isHotspot, pairedRobot, ct);
         });
 
         var results = await Task.WhenAll(probeTasks);
@@ -194,17 +204,17 @@ public class RobotDiscoveryService
         if (clean.EndsWith(":8000"))
             clean = clean.Replace(":8000", "");
 
-        var dev = await ProbeDeviceAsync(clean, false, pairedRobot, ct);
-
-        if (dev is null && clean.EndsWith(".local", StringComparison.OrdinalIgnoreCase))
+        // Same v4-first ordering as the parallel scan — see ScanAllRobotsAsync.
+        if (clean.EndsWith(".local", StringComparison.OrdinalIgnoreCase))
         {
             var ip = await TryResolveMdnsToIpAsync(clean, ct);
             if (!string.IsNullOrWhiteSpace(ip))
             {
-                dev = await ProbeDeviceAsync(ip, false, pairedRobot, ct);
+                var viaIp = await ProbeDeviceAsync(ip, false, pairedRobot, ct);
+                if (viaIp is not null) return viaIp;
             }
         }
 
-        return dev;
+        return await ProbeDeviceAsync(clean, false, pairedRobot, ct);
     }
 }

@@ -33,9 +33,17 @@ public class DiscoveredRobotDevice
             ? "Remembered • Online"
             : "Online on Wi-Fi";
 
+    /// <summary>
+    /// One word, for the corner of a discovery card. <see cref="StatusText"/> is the
+    /// explanatory form and does not fit there — a ~190px card sharing the line with the
+    /// model name has room for about ten characters before it starts eliding.
+    /// </summary>
+    public string StatusShort => IsHotspot
+        ? "setup"
+        : IsPaired
+            ? "known"
+            : "online";
+
     /// <summary>Status color hex for badge styling.</summary>
     public string StatusBadgeColor => IsHotspot ? "#FF9800" : (IsPaired ? "#00E676" : "#29B6F6");
-
-    /// <summary>Emoji icon for device card.</summary>
-    public string IconEmoji => IsHotspot ? "📡" : "🤖";
 }

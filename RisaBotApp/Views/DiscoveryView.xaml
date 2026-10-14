@@ -1,0 +1,405 @@
+<UserControl
+    x:Class="RisaBotApp.Views.DiscoveryView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{StaticResource PageBackground}">
+
+    <!--
+        Pre-pairing screen. No sidebar yet — nothing in the app is meaningful until a robot
+        is chosen — so this owns the whole window and lays itself out as a full-bleed
+        chooser: a thin identity strip, the grid of candidates, and a committed action bar
+        pinned to the bottom.
+
+        Picking a card only selects it. Connecting happens at the footer button, or on a
+        double-click of a card for anyone who does not want the second step.
+    -->
+
+    <UserControl.Resources>
+
+        <!--
+            Placeholder device glyph. Deliberately generic: every device this screen can
+            find is a RISA-Bot, so drawing a rover versus a drone would invent a
+            distinction that does not exist. Stroke-only, so one Stroke binding tints the
+            whole thing by status.
+
+            Coordinates are a 24-unit box: a bead and antenna on the centre line, a rounded
+            head from y6 to y16, two eye rings, then short legs onto a pair of wheels.
+
+            Every circle is two half-arcs rather than one near-360° arc back to its own
+            start. A single sweep that begins and ends at (almost) the same point is a
+            degenerate arc, and rasterisers are entitled to disagree about what it means.
+        -->
+        <PathGeometry x:Key="DeviceGlyph">
+            <PathGeometry.Figures>
+                M 10.85,1.5 A 1.15,1.15 0 1 1 13.15,1.5 A 1.15,1.15 0 1 1 10.85,1.5 Z
+                M 12,2.65 L 12,6
+                M 7,6 L 17,6 A 3,3 0 0 1 20,9 L 20,13 A 3,3 0 0 1 17,16 L 7,16 A 3,3 0 0 1 4,13 L 4,9 A 3,3 0 0 1 7,6 Z
+                M 8.4,11 A 1,1 0 1 1 10.4,11 A 1,1 0 1 1 8.4,11 Z
+                M 13.6,11 A 1,1 0 1 1 15.6,11 A 1,1 0 1 1 13.6,11 Z
+                M 8,16 L 8,17.5
+                M 16,16 L 16,17.5
+                M 6.1,19.4 A 1.9,1.9 0 1 1 9.9,19.4 A 1.9,1.9 0 1 1 6.1,19.4 Z
+                M 14.1,19.4 A 1.9,1.9 0 1 1 17.9,19.4 A 1.9,1.9 0 1 1 14.1,19.4 Z
+            </PathGeometry.Figures>
+        </PathGeometry>
+
+        <!-- Footer link: a text run that behaves like a button. Lower-case and unpainted
+             until hovered, so it reads as available rather than as a call to action. -->
+        <Style x:Key="FooterLink" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource FontRegular}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Padding" Value="0,0,22,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />   <!-- identity strip -->
+            <RowDefinition Height="Auto" />   <!-- title          -->
+            <RowDefinition Height="*" />      <!-- card grid      -->
+            <RowDefinition Height="Auto" />   <!-- action bar     -->
+        </Grid.RowDefinitions>
+
+        <!-- ══════════════ identity strip ═════════════════════════════════ -->
+        <Grid Grid.Row="0" Margin="28,22,28,0">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- Liveness dot; the storyboard at the foot of this file breathes it. It
+                     lives up here rather than as a progress bar over the grid so that a
+                     scan starting or finishing never reflows the cards. -->
+                <Ellipse
+                    x:Name="ScanDot"
+                    Width="8" Height="8"
+                    VerticalAlignment="Center"
+                    Fill="{StaticResource AccentGreen}" />
+
+                <TextBlock
+                    Text="RISA-STUDIO"
+                    FontFamily="{StaticResource FontDisplay}"
+                    FontSize="12"
+                    Margin="10,0,0,0"
+                    VerticalAlignment="Center">
+                    <TextBlock.Foreground>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.6">
+                            <GradientStop Color="{StaticResource IceHighColor}" Offset="0.0" />
+                            <GradientStop Color="{StaticResource IceMidColor}"  Offset="1.0" />
+                        </LinearGradientBrush>
+                    </TextBlock.Foreground>
+                </TextBlock>
+            </StackPanel>
+
+            <TextBlock
+                Text="{Binding AppVersion, StringFormat='v{0}'}"
+                Style="{StaticResource MutedText}"
+                FontSize="11"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- ══════════════ title ══════════════════════════════════════════ -->
+        <StackPanel Grid.Row="1" Margin="28,40,28,0">
+            <TextBlock Text="Robot Discovery" Style="{StaticResource PageTitle}" />
+            <TextBlock
+                Text="{Binding StatusHint}"
+                Style="{StaticResource MutedText}"
+                FontFamily="{StaticResource FontMono}"
+                FontSize="12"
+                Margin="0,7,0,0"
+                TextWrapping="Wrap" />
+
+            <!-- Errors sit under the subtitle rather than in a card of their own: at this
+                 point in the flow there is nothing else on screen to compete with, and a
+                 boxed error would push the grid down by its full height. -->
+            <TextBlock
+                Text="{Binding ErrorMessage}"
+                Foreground="{StaticResource ErrorText}"
+                FontFamily="{StaticResource FontMono}"
+                FontSize="12"
+                Margin="0,8,0,0"
+                TextWrapping="Wrap"
+                Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" />
+        </StackPanel>
+
+        <!-- ══════════════ card grid ══════════════════════════════════════ -->
+        <!-- 20 and 14, not the 28 and 22 the rest of the page uses: the cards carry an
+             8px container margin of their own so their glow and lift have somewhere to
+             go, and the two have to add up to the page inset or the grid sits proud of
+             the title above it. -->
+        <ScrollViewer Grid.Row="2" Style="{StaticResource DarkScrollViewer}" Margin="20,14,20,0">
+            <!--
+                VerticalScrollBarVisibility=Disabled turns off the ListBox's *own* scroller
+                so the outer one above does the work — otherwise the inner one bounds the
+                list to the viewport, scrolls it internally, and does so with the stock
+                light-grey WPF scrollbar that the DarkScrollViewer style cannot reach.
+            -->
+            <ListBox
+                x:Name="DeviceGrid"
+                Style="{StaticResource ChoiceCardListBox}"
+                ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                ItemsSource="{Binding DiscoveredRobots}"
+                SelectedItem="{Binding SelectedRobot, Mode=TwoWay}"
+                PreviewMouseLeftButtonDown="DeviceGrid_PreviewMouseLeftButtonDown">
+
+                <!-- Both bubble up from the item, so binding them here rather than in the
+                     item template keeps input plumbing out of the card. Enter is scoped to
+                     the list on purpose: IsDefault on the connect button would also fire
+                     it from inside the hostname field below. -->
+                <ListBox.InputBindings>
+                    <MouseBinding MouseAction="LeftDoubleClick" Command="{Binding ConnectSelectedCommand}" />
+                    <KeyBinding Key="Return" Command="{Binding ConnectSelectedCommand}" />
+                </ListBox.InputBindings>
+
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <!-- Fixed size, not content-sized: a wrapping row of cards that
+                             each shrink to their own name length reads as a ransom note.
+
+                             The rise-in fires on each card's own Loaded. The scan adds every
+                             device in one pass today, so in practice they rise together —
+                             the point is that the grid arrives rather than blinks into
+                             existence, and it stays correct if the scan is ever changed to
+                             report devices as it finds them. -->
+                        <Grid Width="190" Height="178" Opacity="0">
+                            <Grid.RenderTransform>
+                                <TranslateTransform Y="14" />
+                            </Grid.RenderTransform>
+                            <Grid.Triggers>
+                                <EventTrigger RoutedEvent="Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation
+                                                Storyboard.TargetProperty="Opacity"
+                                                From="0" To="1" Duration="0:0:0.32" />
+                                            <DoubleAnimation
+                                                Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                From="14" To="0" Duration="0:0:0.38">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <CubicEase EasingMode="EaseOut" />
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Grid.Triggers>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />      <!-- glyph  -->
+                                <RowDefinition Height="Auto" />   <!-- name   -->
+                                <RowDefinition Height="Auto" />   <!-- footer -->
+                            </Grid.RowDefinitions>
+
+                            <!-- The Viewbox scales the stroke along with the geometry —
+                                 ~2.2× here — so 1.1 in glyph units lands at about 2.4px. -->
+                            <Viewbox Grid.Row="0" Width="46" Height="46" VerticalAlignment="Center">
+                                <Path
+                                    Data="{StaticResource DeviceGlyph}"
+                                    Stroke="{Binding StatusBadgeColor, Converter={StaticResource StringToBrush}}"
+                                    StrokeThickness="1.1"
+                                    StrokeLineJoin="Round">
+                                    <!--
+                                        The glyph comes up to full strength on selection —
+                                        it is the largest thing on the card, so leaving it
+                                        dimmed would undercut the lit border.
+
+                                        Opacity lives in the Style rather than as an
+                                        attribute on purpose: a local value outranks a style
+                                        trigger, so an Opacity="0.85" up there would simply
+                                        win and the trigger would never show.
+                                    -->
+                                    <Path.Style>
+                                        <Style TargetType="Path">
+                                            <Setter Property="Opacity" Value="0.8" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                    <DataTrigger.EnterActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                 To="1" Duration="0:0:0.22" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </DataTrigger.EnterActions>
+                                                    <DataTrigger.ExitActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                 To="0.8" Duration="0:0:0.22" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </DataTrigger.ExitActions>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Path.Style>
+                                </Path>
+                            </Viewbox>
+
+                            <TextBlock
+                                Grid.Row="1"
+                                Text="{Binding DisplayName}"
+                                FontFamily="{StaticResource FontSemiBold}"
+                                FontSize="15"
+                                Foreground="{StaticResource TextPrimary}"
+                                Margin="16,0,16,2"
+                                TextTrimming="CharacterEllipsis" />
+
+                            <Grid Grid.Row="2" Margin="16,0,16,16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Text="{Binding DisplayModel}"
+                                    Style="{StaticResource MutedText}"
+                                    FontFamily="{StaticResource FontMono}"
+                                    FontSize="11"
+                                    VerticalAlignment="Center"
+                                    TextWrapping="NoWrap"
+                                    TextTrimming="CharacterEllipsis"
+                                    Margin="0,0,8,0" />
+
+                                <!-- Dot above the word rather than beside it: the two read
+                                     as one status at a glance, and the dot survives if the
+                                     model name to its left elides all the way. -->
+                                <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                    <Ellipse
+                                        Width="7" Height="7"
+                                        HorizontalAlignment="Right"
+                                        Margin="0,0,0,5"
+                                        Fill="{Binding StatusBadgeColor, Converter={StaticResource StringToBrush}}" />
+                                    <TextBlock
+                                        Text="{Binding StatusShort}"
+                                        FontFamily="{StaticResource FontMono}"
+                                        FontSize="11"
+                                        Foreground="{Binding StatusBadgeColor, Converter={StaticResource StringToBrush}}" />
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </ScrollViewer>
+
+        <!-- ══════════════ action bar ═════════════════════════════════════ -->
+        <Border
+            Grid.Row="3"
+            Background="{StaticResource SidebarBackground}"
+            BorderBrush="{StaticResource Divider}"
+            BorderThickness="0,1,0,0"
+            Margin="0,20,0,0">
+
+            <StackPanel>
+
+                <!-- Manual entry, folded into the bar rather than living as a card in the
+                     page. Hostname only — the robot advertises itself over mDNS and its
+                     DHCP address changes, so an IP typed here is stale by the next boot. -->
+                <Border
+                    Background="{StaticResource PageBackground}"
+                    BorderBrush="{StaticResource Divider}"
+                    BorderThickness="0,0,0,1"
+                    Padding="28,16"
+                    Visibility="{Binding ShowManualEntry, Converter={StaticResource BoolToVisibility}}">
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" MaxWidth="420" HorizontalAlignment="Left">
+                            <TextBlock
+                                Text="Robot hostname"
+                                Style="{StaticResource FieldLabel}"
+                                Margin="0,0,0,6" />
+                            <TextBox
+                                Style="{StaticResource DarkTextBox}"
+                                Tag="risabot10.local"
+                                Text="{Binding ManualHostInput, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <Button
+                            Grid.Column="1"
+                            Content="GO"
+                            Style="{StaticResource SecondaryButton}"
+                            Width="90"
+                            Margin="12,20,0,0"
+                            VerticalAlignment="Top"
+                            Command="{Binding ManualConnectCommand}"
+                            IsEnabled="{Binding IsScanning, Converter={StaticResource InvertBool}}" />
+                    </Grid>
+                </Border>
+
+                <Grid Margin="28,0" Height="76">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button
+                            Content="rescan"
+                            Style="{StaticResource FooterLink}"
+                            Command="{Binding RescanNetworkCommand}"
+                            IsEnabled="{Binding IsScanning, Converter={StaticResource InvertBool}}" />
+
+                        <Button
+                            Content="enter hostname"
+                            Style="{StaticResource FooterLink}"
+                            Command="{Binding ToggleManualEntryCommand}" />
+                    </StackPanel>
+
+                    <!-- Disabled until something is selected; the template drops it to 35%
+                         opacity, which is the whole reason the bar reads as inert on
+                         arrival and lights up on the first click. -->
+                    <Button
+                        Content="connect  →"
+                        Style="{StaticResource PrimaryButton}"
+                        Width="180"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Command="{Binding ConnectSelectedCommand}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Grid>
+
+    <UserControl.Triggers>
+        <!-- The scan dot breathes for as long as the screen is up, not just during a scan:
+             it is a liveness indicator for the app, and stopping it once results land
+             would read as the app having gone away rather than as the scan having
+             finished. The subtitle already carries the scan state in words. -->
+        <EventTrigger RoutedEvent="Loaded">
+            <BeginStoryboard>
+                <Storyboard>
+                    <DoubleAnimation
+                        Storyboard.TargetName="ScanDot"
+                        Storyboard.TargetProperty="Opacity"
+                        From="1" To="0.25" Duration="0:0:0.9"
+                        AutoReverse="True" RepeatBehavior="Forever" />
+                </Storyboard>
+            </BeginStoryboard>
+        </EventTrigger>
+    </UserControl.Triggers>
+</UserControl>

@@ -1,0 +1,454 @@
+<UserControl
+    x:Class="RisaBotApp.Views.SettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{StaticResource PageBackground}">
+
+    <UserControl.Resources>
+        <!--
+            One row of the identity table. A DataTemplate would need a wrapper type per row
+            for two strings; a Style pair on the two TextBlocks keeps it declarative without
+            inventing a model.
+        -->
+        <Style x:Key="RowLabel" TargetType="TextBlock" BasedOn="{StaticResource MutedText}">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+
+        <Style x:Key="RowValue" TargetType="TextBlock" BasedOn="{StaticResource BodyText}">
+            <Setter Property="FontFamily" Value="{StaticResource FontSemiBold}" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <!-- A sha256, even abbreviated, only reads as an identifier in a mono face. -->
+        <Style x:Key="HashValue" TargetType="TextBlock" BasedOn="{StaticResource RowValue}">
+            <Setter Property="FontFamily" Value="{StaticResource FontMono}" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer Style="{StaticResource DarkScrollViewer}">
+        <!--
+            Centred, not left-anchored. The MaxWidth is there because a settings row stretched
+            across a 1400px monitor puts its label and its value so far apart they stop reading
+            as a pair — but capping the width and then pinning it left just moves the problem,
+            leaving the column hugging the nav rail with half the window empty beside it.
+            Centring keeps the measure short and the gutters even.
+
+            Below ~700px the ScrollViewer hands the Grid less than MaxWidth, the cap stops
+            applying and this becomes a no-op — the content fills the viewport instead of
+            being clipped.
+        -->
+        <Grid MaxWidth="640" HorizontalAlignment="Center" Margin="28,24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />   <!-- header   -->
+                <RowDefinition Height="Auto" />   <!-- robot    -->
+                <RowDefinition Height="Auto" />   <!-- network  -->
+                <RowDefinition Height="Auto" />   <!-- pairing  -->
+                <RowDefinition Height="Auto" />   <!-- ai model -->
+                <RowDefinition Height="Auto" />   <!-- about    -->
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0">
+                <TextBlock Text="Settings" Style="{StaticResource PageTitle}" />
+                <TextBlock
+                    Text="Identity of the robot this app is paired with."
+                    Style="{StaticResource MutedText}"
+                    Margin="0,6,0,0" />
+            </StackPanel>
+
+            <!-- ── Robot ──────────────────────────────────────────────────── -->
+            <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,20,0,0">
+                <StackPanel>
+                    <TextBlock Text="Robot" Style="{StaticResource CardTitle}" Margin="0,0,0,16" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Name"     Style="{StaticResource RowLabel}" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding RobotName}"     Style="{StaticResource RowValue}" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Model"    Style="{StaticResource RowLabel}" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding RobotModel}"    Style="{StaticResource RowValue}" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Serial"   Style="{StaticResource RowLabel}" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding RobotSerial}"   Style="{StaticResource RowValue}" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Firmware" Style="{StaticResource RowLabel}" />
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding RobotFirmware}" Style="{StaticResource RowValue}" />
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Hostname" Style="{StaticResource RowLabel}" />
+                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding RobotMdns}"     Style="{StaticResource RowValue}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- ── Network ────────────────────────────────────────────────── -->
+            <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,14,0,0">
+                <StackPanel>
+                    <TextBlock Text="Network" Style="{StaticResource CardTitle}" Margin="0,0,0,16" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Wi-Fi"     Style="{StaticResource RowLabel}" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ConnectedSsid}" Style="{StaticResource RowValue}" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Interface" Style="{StaticResource RowLabel}" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Wlan0State}"    Style="{StaticResource RowValue}" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Internet"  Style="{StaticResource RowLabel}" />
+                        <TextBlock
+                            Grid.Row="2" Grid.Column="1"
+                            Text="{Binding InternetOnline, Converter={StaticResource BoolToOnline}}"
+                            Style="{StaticResource RowValue}"
+                            Foreground="{Binding InternetOnline, Converter={StaticResource BoolToBrush}, ConverterParameter='#00C853,#667799'}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- ── Pairing ────────────────────────────────────────────────── -->
+            <Border Grid.Row="3" Style="{StaticResource Card}" Margin="0,14,0,0">
+                <StackPanel>
+                    <TextBlock Text="Pairing" Style="{StaticResource CardTitle}" />
+                    <TextBlock
+                        Text="{Binding PairedAt, StringFormat='Paired {0}'}"
+                        Style="{StaticResource MutedText}"
+                        Margin="0,6,0,0" />
+                    <TextBlock
+                        Text="Forgetting the robot clears the stored pairing and returns to discovery. Nothing on the robot changes — its Wi-Fi settings stay as they are."
+                        Style="{StaticResource MutedText}"
+                        Margin="0,10,0,16"
+                        TextWrapping="Wrap" />
+
+                    <Button
+                        Content="FORGET ROBOT"
+                        Style="{StaticResource DangerButton}"
+                        Width="200"
+                        HorizontalAlignment="Left"
+                        Command="{Binding ForgetRobotCommand}" />
+                </StackPanel>
+            </Border>
+
+            <!-- ── AI model ───────────────────────────────────────────────────
+                 DataContext is ModelViewModel, assigned in code-behind — everything else on
+                 this screen binds to DashboardViewModel, and model management has no business
+                 living in the view-model that owns the telemetry loop.
+
+                 Placed in Settings rather than as a sixth top-bar tab: the nav column already
+                 needs MinWidth 1240 for five, and replacing a model is a once-a-season action
+                 that belongs next to the other robot-level admin.
+            -->
+            <Border x:Name="ModelCard" Grid.Row="4" Style="{StaticResource Card}" Margin="0,14,0,0">
+                <StackPanel>
+                    <TextBlock Text="AI model" Style="{StaticResource CardTitle}" />
+                    <TextBlock
+                        Text="The YOLO model the signage detector runs on the BPU. Upload a .bin compiled by tools/bpu_model/compile_model.bat."
+                        Style="{StaticResource MutedText}"
+                        TextWrapping="Wrap"
+                        Margin="0,6,0,16" />
+
+                    <!-- ── What is installed ─────────────────────────────────── -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Installed" Style="{StaticResource RowLabel}" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding RobotModelName}" Style="{StaticResource RowValue}" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Size" Style="{StaticResource RowLabel}" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding RobotModelSize}" Style="{StaticResource RowValue}" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Updated" Style="{StaticResource RowLabel}" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding RobotModelDate}" Style="{StaticResource RowValue}" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="SHA-256" Style="{StaticResource RowLabel}" />
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding RobotModelHash}" Style="{StaticResource HashValue}" />
+                    </Grid>
+
+                    <!--
+                        The restart nag. dnn.load() runs once in SignageDetector.__init__, so a
+                        model on disk that the running stack has never read is the one state
+                        this card must not let pass quietly — it looks like success and behaves
+                        like nothing happened.
+                    -->
+                    <Border
+                        Background="{StaticResource BadgeBackground}"
+                        BorderBrush="#FFB300"
+                        BorderThickness="1,1,1,1"
+                        CornerRadius="6"
+                        Padding="12,10"
+                        Margin="0,0,0,14">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsRestartPending}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                Text="Not loaded yet — the detector reads the model only at startup."
+                                Style="{StaticResource BodyText}"
+                                Foreground="#FFB300"
+                                TextWrapping="Wrap"
+                                VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Height="1" Background="{StaticResource Divider}" Margin="0,2,0,16" />
+
+                    <!-- ── Pick a file ───────────────────────────────────────── -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                        <Button
+                            Content="CHOOSE .BIN…"
+                            Style="{StaticResource SecondaryButton}"
+                            Width="170"
+                            Command="{Binding BrowseCommand}" />
+
+                        <TextBlock
+                            Text="No file chosen"
+                            Style="{StaticResource MutedText}"
+                            VerticalAlignment="Center"
+                            Margin="14,0,0,0"
+                            Visibility="{Binding HasSelection, Converter={StaticResource InvertBoolToVisibility}}" />
+                    </StackPanel>
+
+                    <!--
+                        The chosen file, faded and lifted into place rather than appearing
+                        instantly — the card grows by a whole block here and an abrupt jump
+                        reads as a glitch. Opacity and Y are animated and nothing binds them,
+                        which is what keeps the animation layer from fighting a binding.
+                    -->
+                    <Border
+                        Background="{StaticResource BadgeBackground}"
+                        CornerRadius="6"
+                        Padding="14,12"
+                        Margin="0,0,0,14"
+                        RenderTransformOrigin="0.5,0.5">
+                        <Border.RenderTransform>
+                            <TranslateTransform Y="0" />
+                        </Border.RenderTransform>
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelection}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard x:Name="SelectionReveal">
+                                                <Storyboard>
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetProperty="Opacity"
+                                                        From="0" To="1" Duration="0:0:0.28">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <CubicEase EasingMode="EaseOut" />
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                    <!--
+                                                        Reached by property path, not
+                                                        TargetName: a Style has no name scope,
+                                                        so Storyboard.TargetName cannot resolve
+                                                        from in here (MC4011).
+                                                    -->
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                                        From="8" To="0" Duration="0:0:0.28">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <CubicEase EasingMode="EaseOut" />
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <StopStoryboard BeginStoryboardName="SelectionReveal" />
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock
+                                    Text="{Binding SelectedName}"
+                                    Style="{StaticResource BodyText}"
+                                    FontFamily="{StaticResource FontSemiBold}"
+                                    TextTrimming="CharacterEllipsis" />
+                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                    <TextBlock Text="{Binding SelectedSize}" Style="{StaticResource MutedText}" />
+                                    <TextBlock Text="  ·  " Style="{StaticResource MutedText}" />
+                                    <TextBlock
+                                        Text="{Binding SelectedHash}"
+                                        Style="{StaticResource MutedText}"
+                                        FontFamily="{StaticResource FontMono}" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Only shown when the picked file already matches byte for byte,
+                                 where uploading is legal, pointless, and probably not what was
+                                 meant — the intent is almost always "make it take effect". -->
+                            <TextBlock
+                                Grid.Column="1"
+                                Text="ALREADY INSTALLED"
+                                Style="{StaticResource MutedText}"
+                                Foreground="#FFB300"
+                                FontFamily="{StaticResource FontSemiBold}"
+                                FontSize="11"
+                                VerticalAlignment="Center"
+                                Margin="12,0,0,0"
+                                Visibility="{Binding IsSelectionAlreadyInstalled, Converter={StaticResource BoolToVisibility}}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- ── Actions ─────────────────────────────────────────────
+                         Two rows, not one: all five controls side by side overrun the card's
+                         640px and clip the last button. The split is also the honest grouping —
+                         the upload and its restart switch are the action, the rest is
+                         maintenance.
+                    -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button
+                            Content="UPLOAD"
+                            Style="{StaticResource PrimaryButton}"
+                            Width="150"
+                            Command="{Binding UploadCommand}" />
+
+                        <ToggleButton
+                            Style="{StaticResource ViewSwitchButton}"
+                            Content="Restart after upload"
+                            Margin="10,0,0,0"
+                            IsChecked="{Binding RestartAfterUpload}" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal">
+                        <Button
+                            Content="Roll back"
+                            Style="{StaticResource GhostButton}"
+                            Width="120"
+                            Command="{Binding RollbackCommand}" />
+
+                        <Button
+                            Content="Restart stack"
+                            Style="{StaticResource GhostButton}"
+                            Width="140"
+                            Margin="10,0,0,0"
+                            Command="{Binding RestartStackCommand}" />
+
+                        <Button
+                            Content="Refresh"
+                            Style="{StaticResource GhostButton}"
+                            Width="110"
+                            Margin="10,0,0,0"
+                            Command="{Binding RefreshCommand}" />
+                    </StackPanel>
+
+                    <TextBlock
+                        Text="{Binding BackupSummary}"
+                        Style="{StaticResource MutedText}"
+                        FontSize="11"
+                        Margin="0,8,0,0"
+                        Visibility="{Binding BackupSummary, Converter={StaticResource StringNotEmptyToVisibility}}" />
+
+                    <!--
+                        Determinate on purpose. The failure this screen exists to survive is a
+                        transfer that stalls half way on a bad link, and an indeterminate bar
+                        (or an animated fake) would keep sweeping cheerfully through it. Value
+                        is bound, so it is never animated.
+                    -->
+                    <ProgressBar
+                        Height="6"
+                        Minimum="0"
+                        Maximum="1"
+                        Value="{Binding UploadProgress}"
+                        Background="{StaticResource Divider}"
+                        Foreground="{StaticResource AccentBlue}"
+                        BorderThickness="0"
+                        Margin="0,14,0,0"
+                        Visibility="{Binding IsUploading, Converter={StaticResource BoolToVisibility}}" />
+
+                    <TextBlock
+                        Text="{Binding StatusMessage}"
+                        Foreground="{Binding StatusColor, Converter={StaticResource StringToBrush}}"
+                        Style="{StaticResource BodyText}"
+                        FontSize="12"
+                        TextWrapping="Wrap"
+                        Margin="0,12,0,0"
+                        Visibility="{Binding StatusMessage, Converter={StaticResource StringNotEmptyToVisibility}}" />
+
+                    <Border Height="1" Background="{StaticResource Divider}" Margin="0,16,0,12" />
+
+                    <!--
+                        Stated plainly because no validation can catch it. signage_detector.py
+                        indexes classes positionally — class_ids != 9 to drop one, (6, 7, 8) for
+                        the traffic-light re-check, 1 for the hill — so a model whose class order
+                        differs loads happily and acts on the wrong signs.
+                    -->
+                    <TextBlock
+                        Style="{StaticResource MutedText}"
+                        FontSize="11"
+                        TextWrapping="Wrap"
+                        Text="Class order matters: the detector identifies signs by index, not by name, so a model trained with its classes in a different order will load without complaint and act on the wrong ones. Keep the class list identical to the one the model was originally trained with." />
+                </StackPanel>
+            </Border>
+
+            <!-- ── About ──────────────────────────────────────────────────── -->
+            <Border Grid.Row="5" Style="{StaticResource Card}" Margin="0,14,0,0">
+                <Grid>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="RISA-Studio" Style="{StaticResource CardTitle}" />
+                        <TextBlock
+                            Text="Desktop build"
+                            Style="{StaticResource MutedText}"
+                            Margin="0,4,0,0" />
+                    </StackPanel>
+
+                    <TextBlock
+                        Text="{Binding AppVersion, StringFormat='v{0}'}"
+                        Style="{StaticResource MutedText}"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

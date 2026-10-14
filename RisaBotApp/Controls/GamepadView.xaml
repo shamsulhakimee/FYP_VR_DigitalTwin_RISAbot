@@ -1,0 +1,194 @@
+<UserControl
+    x:Class="RisaBotApp.Controls.GamepadView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!--
+        Live mirror of the joystick, matching the controller card in the web dashboard: a
+        thirteen-pad grid and two stick wells.
+
+        The layout is declared here and the lighting is done in code-behind, because which
+        pad corresponds to which entry in the telemetry arrays is index arithmetic — the
+        buttons come across as a bare list of ints, and the D-pad is not in that list at
+        all but hides in axes 6 and 7. Expressing that as thirteen converter bindings with
+        literal indices scattered through the markup would put the mapping in thirteen
+        places; GamepadView.xaml.cs keeps it in one, next to the named constants.
+    -->
+
+    <UserControl.Resources>
+
+        <!--
+            A pad. Lit state is applied from code by setting Tag to "on", so that the visual
+            treatment stays here rather than being built out of brushes in the code-behind.
+        -->
+        <Style x:Key="Pad" TargetType="Border">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Margin" Value="2" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Background" Value="{StaticResource PageBackground}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Divider}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Style.Triggers>
+                <Trigger Property="Tag" Value="on">
+                    <Setter Property="Background" Value="{StaticResource AccentBlue}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentBlue}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="PadLabel" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+        </Style>
+
+        <Style x:Key="StickWell" TargetType="Border">
+            <Setter Property="Width" Value="60" />
+            <Setter Property="Height" Value="60" />
+            <Setter Property="CornerRadius" Value="30" />
+            <Setter Property="Background" Value="{StaticResource PageBackground}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Divider}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+    </UserControl.Resources>
+
+    <StackPanel>
+
+        <!-- ══════════ button grid ══════════════════════════════════════ -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- row 0: shoulders around the up arrow -->
+            <Border x:Name="PadLB" Grid.Row="0" Grid.Column="0" Style="{StaticResource Pad}">
+                <TextBlock Text="LB" Style="{StaticResource PadLabel}" />
+            </Border>
+            <Border x:Name="PadUp" Grid.Row="0" Grid.Column="1" Style="{StaticResource Pad}">
+                <TextBlock Text="&#x25B2;" Style="{StaticResource PadLabel}" />
+            </Border>
+            <Border x:Name="PadRB" Grid.Row="0" Grid.Column="2" Style="{StaticResource Pad}">
+                <TextBlock Text="RB" Style="{StaticResource PadLabel}" />
+            </Border>
+
+            <!-- row 1: the D-pad's horizontal axis, with Start between -->
+            <Border x:Name="PadLeft" Grid.Row="1" Grid.Column="0" Style="{StaticResource Pad}">
+                <TextBlock Text="&#x25C0;" Style="{StaticResource PadLabel}" />
+            </Border>
+            <Border x:Name="PadStart" Grid.Row="1" Grid.Column="1" Style="{StaticResource Pad}">
+                <TextBlock Text="STA" Style="{StaticResource PadLabel}" />
+            </Border>
+            <Border x:Name="PadRight" Grid.Row="1" Grid.Column="2" Style="{StaticResource Pad}">
+                <TextBlock Text="&#x25B6;" Style="{StaticResource PadLabel}" />
+            </Border>
+
+            <!-- row 2 -->
+            <Border x:Name="PadX" Grid.Row="2" Grid.Column="0" Style="{StaticResource Pad}">
+                <TextBlock Text="X" Style="{StaticResource PadLabel}" />
+            </Border>
+            <Border x:Name="PadDown" Grid.Row="2" Grid.Column="1" Style="{StaticResource Pad}">
+                <TextBlock Text="&#x25BC;" Style="{StaticResource PadLabel}" />
+            </Border>
+            <Border x:Name="PadY" Grid.Row="2" Grid.Column="2" Style="{StaticResource Pad}">
+                <TextBlock Text="Y" Style="{StaticResource PadLabel}" />
+            </Border>
+
+            <!-- row 3 -->
+            <Border x:Name="PadA" Grid.Row="3" Grid.Column="0" Style="{StaticResource Pad}">
+                <TextBlock Text="A" Style="{StaticResource PadLabel}" />
+            </Border>
+            <Border x:Name="PadLT" Grid.Row="3" Grid.Column="1" Style="{StaticResource Pad}">
+                <TextBlock Text="LT" Style="{StaticResource PadLabel}" />
+            </Border>
+            <Border x:Name="PadB" Grid.Row="3" Grid.Column="2" Style="{StaticResource Pad}">
+                <TextBlock Text="B" Style="{StaticResource PadLabel}" />
+            </Border>
+
+            <!-- row 4 -->
+            <Border x:Name="PadRT" Grid.Row="4" Grid.Column="1" Style="{StaticResource Pad}">
+                <TextBlock Text="RT" Style="{StaticResource PadLabel}" />
+            </Border>
+        </Grid>
+
+        <!-- ══════════ sticks ═══════════════════════════════════════════ -->
+        <Grid Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                <Border Style="{StaticResource StickWell}">
+                    <!--
+                        The dot is positioned by a TranslateTransform rather than by margin.
+                        A margin change forces a layout pass on every telemetry poll; a
+                        render transform does not touch layout at all.
+                    -->
+                    <Ellipse
+                        x:Name="StickDotL"
+                        Width="12" Height="12"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Fill="{StaticResource TextMuted}">
+                        <Ellipse.RenderTransform>
+                            <TranslateTransform x:Name="StickOffsetL" />
+                        </Ellipse.RenderTransform>
+                    </Ellipse>
+                </Border>
+                <TextBlock
+                    x:Name="StickLabelL"
+                    Text="L: 0.0, 0.0"
+                    Style="{StaticResource MutedText}"
+                    FontSize="10"
+                    HorizontalAlignment="Center"
+                    Margin="0,6,0,0" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                <Border Style="{StaticResource StickWell}">
+                    <Ellipse
+                        x:Name="StickDotR"
+                        Width="12" Height="12"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Fill="{StaticResource TextMuted}">
+                        <Ellipse.RenderTransform>
+                            <TranslateTransform x:Name="StickOffsetR" />
+                        </Ellipse.RenderTransform>
+                    </Ellipse>
+                </Border>
+                <TextBlock
+                    x:Name="StickLabelR"
+                    Text="R: 0.0, 0.0"
+                    Style="{StaticResource MutedText}"
+                    FontSize="10"
+                    HorizontalAlignment="Center"
+                    Margin="0,6,0,0" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Which raw indices are down. Not decoration: the mapping below is one
+             controller's, and this line is how a different controller gets diagnosed. -->
+        <TextBlock
+            x:Name="ButtonDebug"
+            Text="No buttons pressed"
+            Style="{StaticResource MutedText}"
+            FontSize="10"
+            TextWrapping="Wrap"
+            Margin="0,10,0,0" />
+
+    </StackPanel>
+</UserControl>

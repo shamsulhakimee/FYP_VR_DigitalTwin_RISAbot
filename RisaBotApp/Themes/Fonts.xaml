@@ -1,0 +1,33 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Inter ships Regular and Bold under the family "Inter 18pt", but SemiBold is
+        its own family ("Inter 18pt SemiBold") rather than a weight within the first.
+        Hence two FontFamily resources instead of one plus a FontWeight. Segoe UI is
+        appended as a fallback so a missing/unregistered resource degrades to the
+        system font rather than to the WPF default serif.
+    -->
+    <FontFamily x:Key="FontRegular">pack://application:,,,/Resources/Fonts/#Inter 18pt, Segoe UI</FontFamily>
+    <FontFamily x:Key="FontSemiBold">pack://application:,,,/Resources/Fonts/#Inter 18pt SemiBold, Segoe UI Semibold, Segoe UI</FontFamily>
+
+    <!--
+        Display face, for the wordmark only. Inter is a body-text design and at 66px it
+        reads as a large UI label rather than as a name. Bahnschrift is Windows' DIN
+        derivative — the engineering-drawing lineage is the point. Its weights register
+        as separate families rather than as weights, hence the explicit "SemiBold" here.
+    -->
+    <FontFamily x:Key="FontDisplay">Bahnschrift SemiBold, Bahnschrift, Segoe UI Semibold, Segoe UI</FontFamily>
+
+    <!-- Emoji glyphs come from the system font — Inter has no emoji coverage. -->
+    <FontFamily x:Key="FontEmoji">Segoe UI Emoji</FontFamily>
+
+    <!--
+        journalctl output only lines up if the digits and the level prefixes are the same
+        width, so the log view opts out of Inter. Cascadia Mono ships with Windows 11 and
+        recent 10; Consolas is the floor.
+    -->
+    <FontFamily x:Key="FontMono">Cascadia Mono, Consolas, Courier New</FontFamily>
+
+</ResourceDictionary>

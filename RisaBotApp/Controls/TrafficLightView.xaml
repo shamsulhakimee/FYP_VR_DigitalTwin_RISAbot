@@ -1,0 +1,278 @@
+<UserControl
+    x:Class="RisaBotApp.Controls.TrafficLightView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    x:Name="Root">
+
+    <!--
+        Three lamps in a pill, one lit at a time, mirroring the traffic-light card in the
+        web dashboard. The lit lamp gets a radial gradient and a glow; the other two stay
+        visible but dark, because a pill that loses sockets reads as a rendering fault
+        rather than as a signal.
+
+        Which lamp is lit comes from the `traffic_light` telemetry string. The robot sends
+        lowercase names and "unknown" before the detector has seen anything, and unknown is
+        a fourth state — all three dark — not a synonym for red.
+    -->
+
+    <UserControl.Resources>
+
+        <!--
+            One style, three instances, distinguished by Tag. Tag carries the lamp's own
+            colour so the DataTrigger below can ask "am I the lit one" without needing
+            three near-identical styles that differ only in a brush.
+        -->
+        <Style x:Key="Lamp" TargetType="Ellipse">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Fill" Value="{StaticResource LampOff}" />
+        </Style>
+
+        <Style x:Key="LampLabel" TargetType="TextBlock" BasedOn="{StaticResource MutedText}">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,6,0,0" />
+        </Style>
+
+    </UserControl.Resources>
+
+    <Border
+        Background="{StaticResource PageBackground}"
+        BorderBrush="{StaticResource Divider}"
+        BorderThickness="1"
+        CornerRadius="20"
+        Padding="18,14">
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+
+            <!-- ── red ─────────────────────────────────────────────────── -->
+            <StackPanel Margin="0,0,14,0">
+                <Grid>
+                    <!--
+                        The glow is a separate, larger ellipse behind the lamp rather than a
+                        DropShadowEffect on it. A shadow would be a per-frame render-thread
+                        effect on a control that redraws twice a second; a blurred sibling
+                        is a static brush.
+                    -->
+                    <Ellipse
+                        Width="46" Height="46"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Opacity="0">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Style.Triggers>
+                                    <DataTrigger
+                                        Binding="{Binding Lamp, ElementName=Root}"
+                                        Value="red">
+                                        <!-- Animated both ways rather than set. A held
+                                             animation outranks a Setter, so mixing the two
+                                             would light the glow once and never put it out. -->
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetProperty="Opacity"
+                                                        To="0.35" Duration="0:0:0.18" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetProperty="Opacity"
+                                                        To="0" Duration="0:0:0.22" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                        <Ellipse.Fill>
+                            <RadialGradientBrush>
+                                <GradientStop Color="{StaticResource LampRedColor}" Offset="0" />
+                                <GradientStop Color="#00FF1744" Offset="1" />
+                            </RadialGradientBrush>
+                        </Ellipse.Fill>
+                    </Ellipse>
+
+                    <!-- Style as a property element only. The base comes through BasedOn;
+                         also naming it in a Style attribute is a compile error, not a
+                         redundant assignment. -->
+                    <Ellipse>
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse" BasedOn="{StaticResource Lamp}">
+                                <Style.Triggers>
+                                    <DataTrigger
+                                        Binding="{Binding Lamp, ElementName=Root}"
+                                        Value="red">
+                                        <Setter Property="Fill">
+                                            <Setter.Value>
+                                                <RadialGradientBrush GradientOrigin="0.35,0.3">
+                                                    <GradientStop Color="#FF8A9E" Offset="0" />
+                                                    <GradientStop Color="{StaticResource LampRedColor}" Offset="1" />
+                                                </RadialGradientBrush>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                </Grid>
+                <TextBlock Text="RED" Style="{StaticResource LampLabel}" />
+            </StackPanel>
+
+            <!-- ── yellow ──────────────────────────────────────────────── -->
+            <StackPanel Margin="0,0,14,0">
+                <Grid>
+                    <Ellipse
+                        Width="46" Height="46"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Opacity="0">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Style.Triggers>
+                                    <DataTrigger
+                                        Binding="{Binding Lamp, ElementName=Root}"
+                                        Value="yellow">
+                                        <!-- Animated both ways rather than set. A held
+                                             animation outranks a Setter, so mixing the two
+                                             would light the glow once and never put it out. -->
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetProperty="Opacity"
+                                                        To="0.35" Duration="0:0:0.18" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetProperty="Opacity"
+                                                        To="0" Duration="0:0:0.22" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                        <Ellipse.Fill>
+                            <RadialGradientBrush>
+                                <GradientStop Color="{StaticResource LampAmberColor}" Offset="0" />
+                                <GradientStop Color="#00FFC400" Offset="1" />
+                            </RadialGradientBrush>
+                        </Ellipse.Fill>
+                    </Ellipse>
+
+                    <!-- Style as a property element only. The base comes through BasedOn;
+                         also naming it in a Style attribute is a compile error, not a
+                         redundant assignment. -->
+                    <Ellipse>
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse" BasedOn="{StaticResource Lamp}">
+                                <Style.Triggers>
+                                    <DataTrigger
+                                        Binding="{Binding Lamp, ElementName=Root}"
+                                        Value="yellow">
+                                        <Setter Property="Fill">
+                                            <Setter.Value>
+                                                <RadialGradientBrush GradientOrigin="0.35,0.3">
+                                                    <GradientStop Color="#FFE58A" Offset="0" />
+                                                    <GradientStop Color="{StaticResource LampAmberColor}" Offset="1" />
+                                                </RadialGradientBrush>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                </Grid>
+                <TextBlock Text="YELLOW" Style="{StaticResource LampLabel}" />
+            </StackPanel>
+
+            <!-- ── green ───────────────────────────────────────────────── -->
+            <StackPanel>
+                <Grid>
+                    <Ellipse
+                        Width="46" Height="46"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Opacity="0">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Style.Triggers>
+                                    <DataTrigger
+                                        Binding="{Binding Lamp, ElementName=Root}"
+                                        Value="green">
+                                        <!-- Animated both ways rather than set. A held
+                                             animation outranks a Setter, so mixing the two
+                                             would light the glow once and never put it out. -->
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetProperty="Opacity"
+                                                        To="0.35" Duration="0:0:0.18" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetProperty="Opacity"
+                                                        To="0" Duration="0:0:0.22" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                        <Ellipse.Fill>
+                            <RadialGradientBrush>
+                                <GradientStop Color="{StaticResource LampGreenColor}" Offset="0" />
+                                <GradientStop Color="#0000E676" Offset="1" />
+                            </RadialGradientBrush>
+                        </Ellipse.Fill>
+                    </Ellipse>
+
+                    <!-- Style as a property element only. The base comes through BasedOn;
+                         also naming it in a Style attribute is a compile error, not a
+                         redundant assignment. -->
+                    <Ellipse>
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse" BasedOn="{StaticResource Lamp}">
+                                <Style.Triggers>
+                                    <DataTrigger
+                                        Binding="{Binding Lamp, ElementName=Root}"
+                                        Value="green">
+                                        <Setter Property="Fill">
+                                            <Setter.Value>
+                                                <RadialGradientBrush GradientOrigin="0.35,0.3">
+                                                    <GradientStop Color="#8AFFC4" Offset="0" />
+                                                    <GradientStop Color="{StaticResource LampGreenColor}" Offset="1" />
+                                                </RadialGradientBrush>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                </Grid>
+                <TextBlock Text="GREEN" Style="{StaticResource LampLabel}" />
+            </StackPanel>
+
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -1,0 +1,398 @@
+<UserControl
+    x:Class="RisaBotApp.Views.ParametersDrawer"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="clr-namespace:RisaBotApp.ViewModels"
+    FontFamily="{StaticResource FontRegular}">
+
+    <!--
+        Live ROS parameter tuning. Port of the web dashboard's .param-drawer
+        (dashboard_templates.py:768) with three deliberate differences:
+
+        1. It slides in from the RIGHT. The left edge belongs to the navigation drawer, and
+           the web version's left-hand placement is only free there because that page has no
+           sidebar of its own.
+
+        2. It OVERLAYS rather than pushes. toggleParamDrawer() adds .drawer-open to the
+           layout and squeezes the content; doing that here would drive the dashboard's
+           three-column body under its 984px floor and start clipping cards.
+
+        3. There is NO backdrop. The navigation drawer is modal because nothing behind it
+           matters while it is open; this one exists precisely so the operator can watch the
+           camera overlay and the state pill respond to a gain change, so the telemetry
+           underneath has to stay both visible and clickable.
+    -->
+
+    <UserControl.Resources>
+
+        <!-- Group header: the whole strip is the hit target, so it is a Button, not a
+             TextBlock with a mouse handler. -->
+        <Style x:Key="GroupHeaderButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{StaticResource CardBackground}"
+                                BorderBrush="{StaticResource Divider}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="10,9">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush"
+                                        Value="{StaticResource AccentBlue}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Get / Set. Small enough that two fit beside the value box without a second row. -->
+        <Style x:Key="MiniButton" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource FontSemiBold}" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{StaticResource BadgeBackground}"
+                                CornerRadius="6"
+                                Padding="9,0">
+                            <ContentPresenter VerticalAlignment="Center"
+                                              HorizontalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ParamBox" TargetType="TextBox" BasedOn="{StaticResource DarkTextBox}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="9,0" />
+            <Setter Property="Height" Value="28" />
+        </Style>
+
+        <!-- ══════════════ Row template ══════════════════════════════════════
+             Two lines per parameter rather than one. Names run to 35 characters
+             (hill_sign_prime_threshold_reduction) and values include file paths and
+             "B,G,R" triples, so a single-line row in a 420px drawer would ellipsise
+             the name and leave the value box too narrow to read what is in it.
+        -->
+        <DataTemplate x:Key="ParamRowTemplate" DataType="{x:Type vm:ParameterRowViewModel}">
+            <StackPanel Margin="0,0,0,10" ToolTip="{Binding Tip}">
+
+                <!-- Name line: name, the "differs from params.yaml" dot, and the packaged
+                     default. The web version appended "(def: X)" to the name text itself. -->
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding Name}"
+                               FontFamily="{StaticResource FontRegular}"
+                               FontSize="11"
+                               Foreground="{StaticResource TextPrimary}"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+
+                    <Ellipse Width="5" Height="5" Margin="6,1,0,0"
+                             VerticalAlignment="Center"
+                             Fill="{StaticResource WarningText}"
+                             ToolTip="Running value differs from params.yaml"
+                             Visibility="{Binding IsChangedFromDefault,
+                                          Converter={StaticResource BoolToVisibility}}" />
+
+                    <TextBlock Text="{Binding DefaultHint}"
+                               FontSize="10"
+                               Foreground="{StaticResource TextMuted}"
+                               Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding DefaultHint,
+                                            Converter={StaticResource StringNotEmptyToVisibility}}" />
+                </StackPanel>
+
+                <!-- Control line -->
+                <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="52" />
+                    </Grid.ColumnDefinitions>
+
+                    <!--
+                        Enter commits, so the common case (click, type, Enter, watch the robot)
+                        never needs the mouse.
+
+                        UpdateSourceTrigger=PropertyChanged is required, not stylistic. A
+                        TextBox pushes its Text on lost focus by default, and the KeyBinding
+                        below fires on KeyDown while the box still has focus — so with the
+                        default trigger, Enter would send the *previous* value to the robot and
+                        the box would look as though it had applied what is displayed. It also
+                        keeps the SET highlight honest, since IsPendingEdit then tracks typing.
+                    -->
+                    <TextBox Grid.Column="0"
+                             Style="{StaticResource ParamBox}"
+                             Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Return" Command="{Binding SetCommand}" />
+                        </TextBox.InputBindings>
+                    </TextBox>
+
+                    <Button Grid.Column="1"
+                            Style="{StaticResource MiniButton}"
+                            Content="GET"
+                            Margin="6,0,0,0"
+                            Command="{Binding GetCommand}" />
+
+                    <!-- Highlighted while the box holds an uncommitted edit: the one visible
+                         difference between "typed" and "applied to the robot". -->
+                    <Button Grid.Column="2"
+                            Content="SET"
+                            Margin="5,0,0,0"
+                            Command="{Binding SetCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource MiniButton}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPendingEdit}" Value="True">
+                                        <Setter Property="Foreground" Value="White" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <TextBlock Grid.Column="3"
+                               Text="{Binding StatusText}"
+                               FontSize="10"
+                               Margin="6,0,0,0"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding StatusText}"
+                               Foreground="{Binding StatusColor,
+                                            Converter={StaticResource StringToBrush}}" />
+                </Grid>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- ══════════════ Group template ═════════════════════════════════════ -->
+        <DataTemplate x:Key="ParamGroupTemplate" DataType="{x:Type vm:ParameterGroupViewModel}">
+            <StackPanel Margin="0,0,0,8">
+
+                <Button Style="{StaticResource GroupHeaderButton}"
+                        Command="{Binding ToggleCommand}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   FontSize="9"
+                                   Margin="0,0,8,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextMuted}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="▶" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                            <Setter Property="Text" Value="▼" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="{Binding Label}"
+                                       FontFamily="{StaticResource FontSemiBold}"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextPrimary}" />
+                            <!-- The node name is not decoration: three groups are auto_driver
+                                 and two nodes have near-identical parameter sets, so it is the
+                                 only way to tell which process a row is talking to. -->
+                            <TextBlock Text="{Binding Node}"
+                                       FontSize="9"
+                                       Foreground="{StaticResource TextMuted}"
+                                       Margin="0,1,0,0" />
+                        </StackPanel>
+
+                        <!-- Count while idle, progress while reading. -->
+                        <TextBlock Grid.Column="2"
+                                   FontSize="10"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextMuted}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="{Binding CountText}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                            <Setter Property="Text" Value="{Binding ProgressText}" />
+                                            <Setter Property="Foreground"
+                                                    Value="{StaticResource AccentBlue}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                </Button>
+
+                <!-- Body. Collapsed rather than hidden, so a collapsed group costs no layout. -->
+                <StackPanel Margin="10,10,0,4"
+                            Visibility="{Binding IsExpanded,
+                                         Converter={StaticResource BoolToVisibility}}">
+
+                    <Border Background="{StaticResource ErrorBackground}"
+                            CornerRadius="6"
+                            Padding="9,6"
+                            Margin="0,0,0,10"
+                            Visibility="{Binding ErrorText,
+                                         Converter={StaticResource StringNotEmptyToVisibility}}">
+                        <TextBlock Text="{Binding ErrorText}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource ErrorText}" />
+                    </Border>
+
+                    <ItemsControl ItemsSource="{Binding Rows}"
+                                  ItemTemplate="{StaticResource ParamRowTemplate}" />
+
+                    <Button Style="{StaticResource MiniButton}"
+                            Content="RE-READ GROUP"
+                            HorizontalAlignment="Left"
+                            Margin="0,2,0,0"
+                            Command="{Binding RefreshCommand}" />
+                </StackPanel>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />   <!-- header -->
+            <RowDefinition Height="*" />      <!-- groups -->
+            <RowDefinition Height="Auto" />   <!-- save footer -->
+        </Grid.RowDefinitions>
+
+        <!-- ══════════════ Header ═════════════════════════════════════════════ -->
+        <Grid Grid.Row="0" Margin="16,16,10,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="PARAMETERS"
+                           FontFamily="{StaticResource FontDisplay}"
+                           FontSize="13"
+                           Foreground="{StaticResource TextPrimary}" />
+                <TextBlock Text="Live tuning — takes effect immediately"
+                           Style="{StaticResource MutedText}"
+                           FontSize="10"
+                           Margin="0,3,0,0" />
+            </StackPanel>
+
+            <!-- The open/closed flag lives on MainViewModel — it owns the slide animation —
+                 so this reaches up to the window's DataContext rather than adding a
+                 pass-through command here. -->
+            <Button Grid.Column="1"
+                    Command="{Binding DataContext.ToggleParametersCommand,
+                              RelativeSource={RelativeSource AncestorType=Window}}"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    Width="34" Height="34"
+                    Padding="0"
+                    VerticalAlignment="Top"
+                    FocusVisualStyle="{x:Null}">
+                <TextBlock Text="✕" FontSize="15"
+                           Foreground="{StaticResource TextMuted}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+            </Button>
+        </Grid>
+
+        <Border Grid.Row="0" VerticalAlignment="Bottom" Height="1"
+                Background="{StaticResource Divider}" />
+
+        <!-- ══════════════ Groups ═════════════════════════════════════════════ -->
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="16,14,12,14">
+            <ItemsControl ItemsSource="{Binding Groups}"
+                          ItemTemplate="{StaticResource ParamGroupTemplate}" />
+        </ScrollViewer>
+
+        <!-- ══════════════ Save footer ════════════════════════════════════════ -->
+        <Border Grid.Row="2"
+                BorderBrush="{StaticResource Divider}"
+                BorderThickness="0,1,0,0"
+                Padding="16,14">
+            <StackPanel>
+
+                <!--
+                    Stated in full because the three steps are not obvious and getting them
+                    wrong loses a tuning session: SET changes the running node only, SAVE
+                    writes params.yaml on the robot, and only a rebuild moves that file into
+                    the install tree the next launch reads.
+                -->
+                <TextBlock Style="{StaticResource MutedText}"
+                           FontSize="10"
+                           TextWrapping="Wrap"
+                           Text="SET applies to the running node and is lost on restart. Save writes params.yaml on the robot — a colcon build is still needed for the next launch to pick it up." />
+
+                <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="0"
+                            Style="{StaticResource MiniButton}"
+                            Content="COLLAPSE ALL"
+                            Command="{Binding CollapseAllCommand}" />
+
+                    <Button Grid.Column="1"
+                            Content="SAVE AS DEFAULTS"
+                            Command="{Binding SaveDefaultsCommand}"
+                            Style="{StaticResource WarningButton}"
+                            Height="32"
+                            FontSize="11"
+                            Margin="10,0,0,0" />
+                </Grid>
+
+                <ProgressBar Style="{StaticResource BusyBar}"
+                             Margin="0,10,0,0"
+                             Visibility="{Binding IsSaving,
+                                          Converter={StaticResource BoolToVisibility}}" />
+
+                <TextBlock Text="{Binding SaveStatus}"
+                           FontSize="10"
+                           Margin="0,8,0,0"
+                           TextWrapping="Wrap"
+                           Foreground="{Binding SaveStatusColor,
+                                        Converter={StaticResource StringToBrush}}"
+                           Visibility="{Binding SaveStatus,
+                                        Converter={StaticResource StringNotEmptyToVisibility}}" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
