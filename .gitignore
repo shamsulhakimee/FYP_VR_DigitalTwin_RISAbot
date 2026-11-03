@@ -44,3 +44,5 @@ tools/releases/
 installer/publish/
 installer/output/
 
+# FYP1 Data folder
+FYP1 Data/

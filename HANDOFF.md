@@ -1,178 +1,191 @@
-# Handoff — 2026-08-06
+# Handoff — 2026-11-03
 
-Supersedes the 2026-08-03 handoff. What is verified, what is not, and what is next.
+Supersedes the 2026-08-06 handoff. Covers what is known to work, what the next session should
+do first, and what is still open.
 
 ## Where things stand
 
-**On `refactor-test`, committed but NOT pushed:**
+**This repo is new.** It is `shamsulhakimee/FYP_VR_DigitalTwin_RISAbot` (public, only remote
+`origin`), and it began as a copy of the old `eemrull/RISA-bot`. Development happens on `dev`.
+The old repo's branches (`main`/`test`/`refactor-test`) and `company` remotes no longer apply.
+`main` and `dev` both point at `76d197c`.
 
-- `700c94a` — line follower vectorisation, 17 Hz -> 31 Hz
-- `474fd54` — app camera fixes (signage view, direct MJPEG, Android cleartext)
+**The robot and the app work together. This is the baseline to protect.** The user confirmed
+this on 2026-11-03 against the current version:
 
-**Uncommitted on `refactor-test`:** the entire MAUI → WPF rewrite of the companion app, plus
-the AI-model upload feature (section 5 below). This is a large working tree; `git status`
-before assuming anything about it. Note that another tool (Antigravity) is sometimes driven
-against the same working tree, so re-read a file before editing rather than trusting a
-remembered version of it.
+- The laptop joins the robot's `RISABot` access point, and the installed **RISA-Studio
+  v2.0.0** discovers the robot and connects.
+- From the app, the robot can be switched onto another internet WiFi. The laptop then joins
+  the same network and reconnects.
+- The stack (`risabot.service` → `bringup.launch.py`) can be started from the app.
 
-**Already on `origin` (`eemrull/RISA-bot`) from 07-31:** `e9d2d6f`, `92b1da4`.
-Nothing has ever been pushed to the `company` remote — keep it that way.
+The robot is headless, so the app is how it is operated. **Don't change anything in the
+connection path** without asking first. That means the portal (`app.py` and the
+hostapd/dnsmasq units), `ApiClient.cs`, discovery/pairing, WiFi setup and launch start/stop.
 
-Robot `risabot10` was at `192.168.68.67` on 08-03. DHCP, so re-resolve each session
-(`ping -4 -n 1 risabot10.local` from PowerShell; `.local` does not resolve in Git Bash).
+**The robot does not pull from this repo yet.** Its checkout at
+`~/risabotcar_ws/src/RISA-bot` was cloned from the old repository. Fixing that is task 1.
 
-## 1. Camera — DONE, verified on hardware
+**Uncommitted on the PC (`dev`):** the doc corrections made this session (CLAUDE.md,
+ARCHITECTURE.md, README.md, RISA_Bot_System_Context.md, this file), plus the user's own
+`.gitignore` addition (`FYP1 Data/`).
 
-MJPEG encoding lives in the `ros2go2rtc_bridge` node.
-Chain: ROS topic -> bridge `:1985` -> go2rtc `:1984` -> browser/app.
+## Task 1 (do this first): point the robot at this repo
 
-Verified 08-03: all four services listening (`uvicorn`:8000, `dashboard`:8080,
-`go2rtc`:1984, `ros2go2rtc_bridge`:1985), raw view delivering **29.3 fps** end to end
-against a 30.1 Hz source, go2rtc serving real JPEGs.
+Goal: the robot's checkout tracks `origin/dev` of this repo, so changes made on the PC reach
+the robot with `git pull` + rebuild, **without changing the version that works today.**
 
-## 2. Provisioning portal — server side VERIFIED, client side still open
+The guiding rule: **the code running on the robot right now is the truth.** If it differs from
+`dev`, bring the robot's version into `dev`, don't the other way round, unless the user
+decides otherwise. Stop and ask at any step whose result is unexpected.
 
-All four checks from the previous handoff now pass, confirmed live on the robot:
+### 0. Reach the robot
 
-| check | result |
+DHCP, so re-resolve every session: `ping -4 -n 1 risabot10.local` from PowerShell (`.local`
+does not resolve in Git Bash). It was `192.168.68.67` in August. Then `ssh sunrise@<ip>`.
+The robot may also be on the network the app last switched it to, not the AP.
+
+### 1. Inspect only, change nothing
+
+```bash
+cd ~/risabotcar_ws/src/RISA-bot        # if missing: find ~/risabotcar_ws -maxdepth 3 -name .git
+git remote -v
+git branch -vv
+git log --oneline -5
+git status --short
+git stash list
+```
+
+Record the HEAD hash, the branch, and whether the tree is dirty. **A dirty tree or a branch
+other than the old `refactor-test` is important:** it may be robot-only fixes that make the
+current version work.
+
+### 2. Back up before touching anything
+
+```bash
+cd ~/risabotcar_ws/src
+tar czf ~/RISA-bot-backup-$(date +%F).tgz RISA-bot
+cd RISA-bot && git diff > ~/robot-local-changes-$(date +%F).patch   # empty file if clean
+sudo cp /etc/risabot/portal/backend/app.py ~/portal-app.py.bak-$(date +%F)
+```
+
+### 3. Add this repo as a remote (the working tree is unaffected)
+
+```bash
+git remote rename origin upstream-old
+git remote add origin https://github.com/shamsulhakimee/FYP_VR_DigitalTwin_RISAbot.git
+git fetch origin
+```
+
+The repo is public, so fetching over HTTPS needs no credentials. Pushing from the robot would,
+but isn't needed: edit on the PC and push from there.
+
+### 4. Compare before switching
+
+```bash
+git merge-base --is-ancestor HEAD origin/dev && echo "HEAD is in dev's history"
+git log --oneline HEAD..origin/dev          # what dev has that the robot doesn't
+git log --oneline origin/dev..HEAD          # what the robot has that dev doesn't (should be empty)
+git diff --stat HEAD origin/dev -- src tools
+sudo diff /etc/risabot/portal/backend/app.py tools/wifi_provisioning/backend/app.py
+```
+
+What to expect: the most recent robot-side commit in `dev` is `296f05a` (2026-08-21,
+dashboard redesign: `dashboard.py`, `dashboard_templates.py`, and the portal's `app.py`).
+`76d197c` touches no `src/` or `tools/` files. So:
+
+| Result | Action |
 | --- | --- |
-| `/api/robot_info` | real JSON |
-| `GET /` | 404 |
-| `/generate_204` | 404, no redirect |
-| `iptables -t nat -L PREROUTING` | empty |
+| HEAD == `origin/dev`, tree clean | Step 5 only changes tracking. No rebuild needed |
+| HEAD is an ancestor, tree clean, `src`/`tools` diff empty | Safe to switch; no rebuild needed |
+| HEAD is an ancestor, diff touches `src`/`tools` (e.g. HEAD before `296f05a`) | **Ask the user.** Switching changes running code (the dashboard at minimum). Either accept and test, or keep the robot at its commit |
+| Robot has commits or local changes not in `dev` | **Stop.** Copy them to the PC (the patch from step 2, or `git format-patch origin/dev..HEAD`), commit them to `dev`, push, then fetch and recompare |
 
-`dnsmasq.conf` on the robot has no `address=/#/` wildcard and forwards to 8.8.8.8 /
-1.1.1.1, so the DNS hijack is genuinely gone. The four units are named
-`risabot-wifi-portal`, `risabot-hostapd`, `risabot-dnsmasq`, `risabot-ap-interface`
-(not the names the old handoff implied) and all are active.
+**The portal is a separate copy.** `risabot-wifi-portal.service` runs
+`/etc/risabot/portal/backend/app.py`, not the repo file, and no git operation changes it.
+If the `diff` above shows differences, **leave the deployed copy alone.** It is the lifeline,
+and it works. Instead, record which version is deployed. If the deployed copy is the newer
+one, bring it into `dev`.
 
-**Still unconfirmed — needs a physical client.** Join `RISABot-10` from a laptop and
-check: no Windows "sign in to network" banner, and `nslookup github.com` returns a real
-address rather than `192.168.4.1`.
+### 5. Switch (only once step 4 says it's safe)
 
-## 3. Line follower performance — DONE, deployed and committed
+```bash
+test -z "$(git status --porcelain)" \
+  && git checkout -B dev origin/dev \
+  || echo "DIRTY tree - not switched, see step 4"
+# The check matters: git would otherwise silently carry local changes onto dev.
+git branch -vv                     # confirm: dev tracking origin/dev
+```
 
-`_find_all_white_regions` scanned the binary row one pixel at a time in Python. At
-8 scanlines x 320 px that cost ~27 ms per frame and alone held the node under the
-camera's 30 Hz. Now a vectorised run-length scan over `np.diff`.
+Keep the directory name `RISA-bot` and the workspace at `~/risabotcar_ws`.
+`risabot-launch.sh` sources `/home/sunrise/risabotcar_ws/install/setup.bash`; the subdirectory
+name doesn't matter to it, but moving the workspace would.
 
-Benchmarked on the robot before applying: 19.5x faster, identical output across 1616
-cases including all-white, all-black and border-touching runs. Measured after deploy:
+Note `--symlink-install`: Python sources are symlinked into `install/`, so a checkout that
+changes a node's `.py` file takes effect at the **next stack restart** even without a rebuild.
+New or renamed files and entry points still need `colcon build`.
 
-| | before | after |
-| --- | --- | --- |
-| `/lane_error` | 17.05 Hz | **31.2 Hz** |
-| `/camera/debug/line_follower` | 18.9 Hz | **29.4 Hz** |
-| delivered via go2rtc | — | **29.8 fps** |
-| `line_follower_camera` CPU | ~106% | ~83% |
+### 6. Rebuild (only if `src/` changed) and verify through the app
 
-The lane controller runs at twice the rate for less CPU. Filtering is unaffected — the
-Kalman path uses measured `dt`, and `auto_driver`'s PID normalises integral, derivative
-and slew by `dt` on its own 50 Hz timer.
+```bash
+cd ~/risabotcar_ws && colcon build --packages-select <changed packages> && source install/setup.bash
+```
 
-**Only ever measured with the robot parked. Needs a real track test before competition.**
+Then restart the stack from the app and repeat the user's full check: discover → connect →
+camera → start stack → WiFi switch → reconnect. Only call task 1 done when that loop passes.
 
-The anchor tracker in `_detect_scanlines` is still per-frame, so `max_shift` now permits
-~465 px/s of lateral travel rather than ~255 px/s. Deliberate, but it is the first knob
-to revisit if the anchor wanders on noisy frames.
+### Rollback
 
-## 4. App camera path — Windows verified (Android parts now moot, see section 5)
+`git checkout <HEAD hash from step 1>`, rebuild the same packages, and restart. Failing that,
+restore `~/RISA-bot-backup-<date>.tgz`. `git remote` changes are harmless and can stay.
 
-Three defects fixed in `474fd54`:
+## Carried over from 2026-08-06: status unknown since then
 
-- **Sign button sent `view=sign`**, not a valid name. Failed twice: the bridge rejects it,
-  and `dashboard.py`'s `auto_toggle_debug` matched no branch so it cleared `show_debug`
-  on all three perception nodes. That is why the view was blank rather than stale.
-  `dashboard.py` returns 200 regardless, so the app reported success throughout.
-- **Stream now hits `/api/stream.mjpeg`** instead of go2rtc's `stream.html` player page.
-  Wrapped in a minimal document rather than navigated to directly — Android's WebView
-  will not reliably render `multipart/x-mixed-replace` as a top-level navigation.
-- **`AndroidManifest.xml` had no `usesCleartextTraffic`.** The robot serves plain HTTP
-  only, so on Android 9+ *every* API call would have failed, not just the camera.
+None of these has been reported on since the August handoff. Ask before assuming either way.
 
-## 5. App rewritten to WPF, and AI-model upload — verified against a stub, NOT on hardware
-
-The companion app is now WPF (`net10.0-windows`, single target). The MAUI multi-target build
-and the Android head are retired, which makes the previous handoff's "build the Android
-target" item obsolete rather than pending. Build with `dotnet build RisaBotApp.csproj` and
-**no `-f` flag** — the old framework monikers now fail with NETSDK1005.
-
-Added since 08-03: a Data Logger route of its own, a parameters drawer that live-tunes over
-`/api/set_param`, and AI-model management on the Settings page backed by three new endpoints
-on port 8000 (`GET /api/model/info`, `POST /api/model/upload`, `POST /api/model/rollback`).
-
-**How it was verified without a robot.** `app.py` was imported with `fastapi` stubbed out and
-its real handlers driven from a stdlib HTTP server, then the actual WPF UI was driven through
-UI Automation against it. So the bytes on the wire, the validation, the atomic swap and the
-error bodies are production code; only the ASGI layer was substituted.
-
-Confirmed that way: a 7,865,930-byte model arrives byte-identical (sha256 matches source to
-disk), the displaced model is kept as `.bak` at its original mtime, rollback is exactly its
-own inverse on disk, and a mistakenly-uploaded zip is rejected with both files left untouched
-and the server's actionable message surfaced verbatim in the UI. 52/52 handler assertions pass.
-
-Three real client bugs were found and fixed by doing this: the upload's own success message
-was being erased ~1 s later by the verification refresh; `ModelInfoTimeoutMs = 20 s` was dead
-because the request went through the 10 s-capped shared `HttpClient`; and "Restart stack"
-reported a false timeout at 10 s on an endpoint that can legitimately take 40 s, which would
-have led an operator to restart the stack twice.
-
-**Nothing here has touched the robot.** Specifically unverified: that `dnn.load()` accepts an
-uploaded model at all, that the `chown` to `sunrise` is correct in practice, and that an
-operator-trained model's class order lines up (see the trap below).
+- **Line follower at 31 Hz has never been track-tested.** It was measured with the robot
+  parked only. If the anchor wanders on noisy frames, revisit `max_shift` in
+  `_detect_scanlines` first.
+- **AI-model upload/rollback was verified against a stub, never on hardware.** Unverified:
+  that `dnn.load()` accepts an uploaded model, that the `chown` to `sunrise` works, and the
+  class order (below).
+- **Provisioning client side:** joining the AP from a laptop should show no "sign in to
+  network" banner, and `nslookup github.com` should return a real address. The user's
+  2026-11-03 report suggests the AP flow works, but these two specific checks weren't stated.
 
 ## Known defects, not fixed
 
-- `RefreshTelemetryAsync` (`DashboardViewModel.cs:134`) mutates observable properties off
-  the UI thread with no `MainThread` marshalling. Harmless on Windows — and now Windows is
-  the only target, so this is downgraded from hazard to untidiness.
-  `RobotConnectionService.cs:156` shows the correct pattern.
-- **Four `ApiClient` timeouts are silently capped at 10 s** by the shared `HttpClient`'s
-  `Timeout`, which no per-request `CancelAfter` can raise: scan (30 s), connect (60 s),
-  launch start/stop (90 s) and save-defaults (30 s). The fix is to route them through the
-  uncapped `UploadHttp` client, as model upload and `restart_ros` already do. Launch
-  start/stop is the one most likely to bite — it is the slowest and it is on the happy path.
-- `signage_detector` produced a false positive on desk clutter during testing. Model
-  quality, not plumbing — worth checking against real signs.
-- **Class order is unvalidated and unvalidatable.** `signage_detector.py` indexes classes
-  positionally, so a model whose class list is ordered differently loads happily and acts on
-  the wrong signs. The upload UI says so in prose because nothing else can catch it.
-- The Android head is gone rather than fixed. The `usesCleartextTraffic` and WebView
-  reasoning in section 4 is now moot.
-- `tools/bpu_model/compile_model.bat` still does not run `patch_onnx_resize.py` before
-  `hb_mapper`. Offered as a fix, never confirmed.
+- **Four `ApiClient` timeouts are silently capped at 10 s** (scan 30 s, connect 60 s, launch
+  start/stop 90 s, save-defaults 30 s) by the shared `HttpClient`. This is in the connection
+  path, so leave it unless the user asks. The fix is to route them through `UploadHttp`.
+- **Class order is unvalidated and unvalidatable.** `signage_detector.py` indexes classes by
+  position, so a model with a different class order loads fine and acts on the wrong signs.
+- `signage_detector` produced a false positive on desk clutter. That's model quality, not
+  plumbing.
+- `tools/bpu_model/compile_model.bat` doesn't run `patch_onnx_resize.py` before `hb_mapper`.
+- `Launch-RisaBotApp.bat` falls back to `dotnet publish -f net10.0-windows10.0.19041.0` when
+  `dist/` is missing. That framework no longer exists (NETSDK1005), so it fails on a fresh
+  clone. It doesn't matter in practice: the user runs the installed app.
+- `RefreshTelemetryAsync` (`DashboardViewModel.cs`) mutates observable properties off the UI
+  thread. Harmless on Windows.
 
 ## Gotchas
 
-- **`setup_autostart.sh` enables *and starts* `risabot.service`.** Running `ros2 launch`
-  by hand on top of it collides on ports 8080 and 1985. `sudo systemctl stop risabot` first.
-- **Deploying a Python node needs `colcon build --packages-select risabot_automode`**, not
-  just an scp — the installed copy under `install/` is what runs.
-- Restarting `risabot.service` can drop the SSH session briefly. It comes back.
-- `ros2 param get` intermittently fails with `!rclpy.ok()`. Retry, or read
-  `config/params.yaml` directly.
-- `obstacle_avoidance` WARN spam drowns the logs while parked. Filter before grepping.
-- SSH key `claude-code-dev@risabot` is in the robot's `authorized_keys`. Revoke with
+- **`setup_autostart.sh` enables *and starts* `risabot.service`.** Manual `ros2 launch` on
+  top of it collides on ports 8080 and 1985: `sudo systemctl stop risabot` first.
+- Deploying a new or renamed Python node needs `colcon build --packages-select <pkg>`, not
+  just an scp.
+- Restarting `risabot.service` can briefly drop the SSH session. It comes back.
+- `ros2 param get` intermittently fails with `!rclpy.ok()`. Read `config/params.yaml` instead.
+- `obstacle_avoidance` floods the logs with WARNs while parked. Filter before grepping.
+- SSH key `claude-code-dev@risabot` may still be in the robot's `authorized_keys`. Revoke with
   `sed -i '/claude-code-dev@risabot/d' ~/.ssh/authorized_keys`.
 
-## Next
+## Next, after task 1
 
-1. **Track test the line follower** at 31 Hz — the one thing standing between this and
-   trusting it in competition. Unchanged and still the highest-value item.
-2. **Get the model endpoints onto a robot and prove the loop closes.** Deploy `app.py` to
-   `/etc/risabot/portal/backend` (it is not run from the repo — see CLAUDE.md), upload a
-   `.bin` from the app, restart the stack, and confirm `signage_detector` actually loads it.
-   Everything in section 5 is stub-verified only.
-3. **Push `700c94a` and `474fd54`** to `origin`, and decide what to do with the large
-   uncommitted WPF rewrite sitting on top of them.
-4. **Fix the four capped timeouts** listed under known defects.
-5. **Retiring the ROS web dashboard** is now much closer than the 07-31 note implied. The app
-   covers LiDAR, parameter tuning, the data logger and IMU calibration. What is left to port
-   is record/playback (`/api/record_playback`, `/teach`) and the competition reset
-   (`/api/reset_competition`) — for both, `ApiClient` can already call the endpoint and no
-   view-model does, so this is UI work rather than plumbing.
+1. Commit (and push, when the user says so) this session's doc changes on `dev`.
+2. Ask the user which item to take on: the line-follower track test, proving model upload on
+   hardware, or new development.
 
-Deferred by an explicit decision, not forgotten: **Phase 2 of model management** — driving the
-`hb_mapper` Docker conversion from the app, with `risabot_bpu_config.yaml` exposed as a form
-and the conversion log streamed live, feeding its output into the Phase 1 uploader. Phase 1
-(upload an already-compiled `.bin`) is what exists today.
+Deferred by explicit decision: **Phase 2 of model management**, driving the `hb_mapper`
+Docker conversion from the app. Phase 1 (upload an already-compiled `.bin`) is what exists.

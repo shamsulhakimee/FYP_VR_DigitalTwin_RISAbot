@@ -16,7 +16,8 @@ RISA-bot is a competition-grade autonomous vehicle built on **ROS 2 Humble** and
 ## ⚡ Quick Start: Companion App (No Build Required)
 
 For end users who just want to run the companion app without compiling or installing .NET:
-- **Direct Executable**: Double-click [`dist/RisaBotApp/RisaBotApp.exe`](file:///c:/Users/eemrull/RISA-bot/dist/RisaBotApp/RisaBotApp.exe) or run [`Launch-RisaBotApp.bat`](file:///c:/Users/eemrull/RISA-bot/Launch-RisaBotApp.bat) from the root folder.
+- **Installer**: Build a self-contained Windows installer with [`installer/Build-Installer.ps1`](installer/Build-Installer.ps1) (Inno Setup script: [`installer/RisaBotApp.iss`](installer/RisaBotApp.iss)) and distribute the result from `installer/output/`.
+- **Prebuilt executable**: If a `dist/RisaBotApp/RisaBotApp.exe` has been published locally, double-click it or run [`Launch-RisaBotApp.bat`](Launch-RisaBotApp.bat). `dist/` is gitignored, so a fresh clone does not contain it.
 - **Features**: Automatic robot mDNS discovery, live camera streams, real-time telemetry HUD, virtual joystick control, 2D SLAM mapping, and BPU model manager.
 
 ---
@@ -37,7 +38,7 @@ For end users who just want to run the companion app without compiling or instal
   - **Port 8080**: Built-in ROS 2 Web Dashboard for camera views, sensor HUD, live parameter tuning/saving, SLAM, data logger, and record/playback.
   - **Port 1984**: `go2rtc` low-latency WebRTC/MJPEG streaming server.
   - **Port 1985**: `ros2go2rtc_bridge` camera MJPEG source with dynamic debug view routing.
-- **Companion App (`RisaBotApp`)**: Windows desktop companion app (.NET MAUI / WinUI 3) with robot discovery, live camera, telemetry HUD, virtual RC controls, SLAM map visualization, and BPU model card manager.
+- **Companion App (`RisaBotApp`)**: Windows desktop companion app (WPF / .NET 10) with robot discovery, live camera, telemetry HUD, virtual RC controls, SLAM map visualization, and BPU model card manager.
 - **Fleet & Diagnostic Tooling**: Paramiko multi-robot deployment (`bulk_setup_robots.py`), automated rosbag regression validator (`bag_regression_validator.py`), and live BPU testing (`verify_live.py`).
 
 ---
@@ -123,7 +124,7 @@ For setting up a **new robot** (Horizon RDK X5 / Ubuntu 22.04 with ROS 2 Humble 
 
 ```bash
 # 1. Clone workspace (includes third-party dependencies)
-git clone https://github.com/eemrull/RISA-bot.git ~/risabotcar_ws
+git clone -b dev https://github.com/shamsulhakimee/FYP_VR_DigitalTwin_RISAbot.git ~/risabotcar_ws
 cd ~/risabotcar_ws
 
 # 2. Run the automated installer (installs apt/pip deps, builds YDLidar-SDK, sets udev rules & aliases)

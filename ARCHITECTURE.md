@@ -122,25 +122,29 @@ graph TD
 
 ## 3. Autonomous State Machine (`auto_driver`)
 
-The central brain (`auto_driver.py`) runs a priority-ordered state machine on a **50 Hz timer** (`0.02 s`). It evaluates priorities strictly from top to bottom on each tick and selects exactly one behavior:
+The central brain (`auto_driver.py`) runs a priority-ordered state machine on a **50 Hz timer** (`0.02 s`). It evaluates priorities strictly from top to bottom on each tick (an `if/elif` chain in the timer callback) and selects exactly one behavior. Priority numbers below match the comments in the code:
 
 | Priority | State Enum | Trigger / Gating Condition | Action / Velocity Source |
 |---|---|---|---|
-| **1** | `MANUAL` | `/auto_mode == false` | No autonomous `/cmd_vel` published (RC pass-through) |
-| **2** | `FINISHED` | Lap 2 + final perpendicular parking maneuver completed | Full stop |
-| **2.5** | `TRAFFIC_LIGHT` | Red or Yellow light detected (AI BPU / HSV) | Full stop; latches until green light confirmed |
-| **2.6** | `BOOM_GATE` | Gate barrier detected closed (LiDAR variance + camera red bar) | Full stop until gate clears for hysteresis duration |
-| **3** | `EMERGENCY_STOP` | `/cmd_safety_status` e-stop active or safety timeout | Full stop |
-| **4** | `OBSTRUCTION` | LiDAR obstacle in lane closer than `detect_dist` | Uses `/obstruction_cmd_vel` (lateral dodge trajectory) |
-| **4.5** | `REVERSE_ADJUST` | Front obstacle too close (< minimum clearance) | Reverse slowly with center steering |
-| **5** | `ROUNDABOUT` | Lap 1 + after obstruction clears | Lane follow for `t_roundabout_sec` with exit bias |
-| **6** | `PARKING_IDLE` | Lap 2 + parking signboard detected | Full stop for `parking_idle_duration` before maneuver |
-| **6.5** | `PARKING_PLAYBACK` | Parking idle complete / teach-and-playback trigger | Replays recorded 20 Hz trajectory via `servo_controller` |
-| **7** | `TUNNEL` | Both corridor walls detected by LiDAR | Uses `/tunnel_cmd_vel` (RANSAC PD wall centering) |
-| **9.5** | `HILL` | IMU pitch > `hill_pitch_threshold` (primed by hill sign) | Dynamic speed boost proportional to pitch angle |
-| **9.6** | `DESCENT` | IMU pitch < negative threshold (downhill slope) | Controlled braking speed with lane tracking |
-| **10** | `LANE_RECOVERY` | `/lane_lost == true` (no valid scanline detection) | Holds last known heading briefly, then stops |
-| **11** | `LANE_FOLLOW` | Default autonomous state | Steers using `/lane_error` via PID controller |
+| **1** | `MANUAL` | `/auto_mode == false` | No autonomous `/cmd_vel` published (RC pass-through); returns before any other check |
+| **2** | `EMERGENCY_STOP` | `/cmd_safety_status` e-stop active | Full stop |
+| **2.5** | `TRAFFIC_LIGHT` | Red or Yellow light detected (AI BPU / HSV), or red latch held | Full stop; latch released on `green` or `generic`. On Lap 1, green also advances to Lap 2 |
+| **2.6** | `BOOM_GATE` | `/boom_gate_open == false` (LiDAR variance + camera red bar) | Full stop |
+| **3** | `OBSTRUCTION` | `/obstruction_active == true` | Uses `/obstruction_cmd_vel` (lateral dodge trajectory) |
+| **3.5** | `REVERSE_ADJUST` | Front obstacle too close | Reverse at `0.8 × forward_speed`, centre steering |
+| **4** | `ROUNDABOUT` | `t_post_obstacle_sec` after obstruction clears, boom gate not yet armed | Lane follow for `t_roundabout_sec`, then arms the boom gate |
+| **5** | `PARKING_IDLE` | Lap 2 + parking signboard detected (once, until `reset_competition`) | Full stop for `parking_idle_duration` |
+| **5** | `PARKING_PLAYBACK` | Parking idle complete | Sends `playback` on `/record_playback_cmd`; `servo_controller` replays the recorded 20 Hz trajectory, then back to `LANE_FOLLOW` |
+| **6** | `TUNNEL` | `/tunnel_detected == true` | Uses `/tunnel_cmd_vel` (RANSAC PD wall centering); exiting arms the traffic light |
+| **8.2** | `HILL` | IMU pitch ≥ `hill_pitch_threshold` (lowered while primed by a hill sign), with hysteresis | Speed boost proportional to pitch, scaled lane steering |
+| **8.3** | `HILL_DESCENT` | IMU pitch ≤ `-descent_pitch_threshold`, with hysteresis | Speed reduced proportionally to slope, scaled lane steering |
+| **8.5** | `LANE_RECOVERY` | `/lane_lost == true` | Stops in place (the reverse behaviour is commented out) |
+| **9** | `LANE_FOLLOW` | Default autonomous state | Steers using `/lane_error` via PID controller |
+
+**Enum members not reached by the tick logic.** `ChallengeState` has 17 members, but three are never selected:
+
+- `FINISHED` — the terminal-state branch is disabled (`if False:` placeholder). After parking playback the robot resumes `LANE_FOLLOW`; use `reset_competition` or `set_lap_2` to reset the session.
+- `PARALLEL_PARK`, `PERPENDICULAR_PARK` — parking is done through `PARKING_IDLE` → `PARKING_PLAYBACK` instead. The names survive as `servo_controller` phase labels and dashboard styling.
 
 ---
 
